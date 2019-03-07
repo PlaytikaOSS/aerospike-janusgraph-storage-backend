@@ -45,12 +45,13 @@
             <artifactId>aerospike-client</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>com.aerospike</groupId>
-            <artifactId>aerospike-reactor-client</artifactId>
-        </dependency>
-
         <!--Test-->
+
+        <dependency>
+            <groupId>org.janusgraph</groupId>
+            <artifactId>janusgraph-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>junit</groupId>

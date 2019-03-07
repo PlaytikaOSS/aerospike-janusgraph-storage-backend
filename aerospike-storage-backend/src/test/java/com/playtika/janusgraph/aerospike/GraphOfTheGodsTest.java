@@ -3,7 +3,6 @@ package com.playtika.janusgraph.aerospike;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
-import org.janusgraph.core.JanusGraphTransaction;
 import org.janusgraph.example.GraphOfTheGodsFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -22,7 +21,10 @@ public class GraphOfTheGodsTest {
         AerospikeTestUtils.deleteAllRecords("test");
 
 //        graph = JanusGraphFactory.build().set("storage.backend", "inmemory").open();
-        graph = JanusGraphFactory.build().set("storage.backend", "com.playtika.janusgraph.aerospike.AerospikeStoreManager").open();
+        graph = JanusGraphFactory.build()
+                .set("storage.backend", "com.playtika.janusgraph.aerospike.AerospikeStoreManager")
+                .set("storage.allow_scan", "true")
+                .open();
         GraphOfTheGodsFactory.loadWithoutMixedIndex(graph, true);
     }
 
@@ -45,15 +47,15 @@ public class GraphOfTheGodsTest {
         assertFalse("Query should not return a result", resultsNew.hasNext());
     }
 
-//    @Test
-//    public void testQueryAllVertices() throws Exception {
-//        assertEquals("Expected the correct number of VERTICES",
-//                12, graph.traversal().V().count().tryNext().get().longValue());
-//    }
-//
-//    @Test
-//    public void testQueryAllEdges() throws Exception {
-//        assertEquals("Expected the correct number of EDGES",
-//                17, graph.traversal().E().count().tryNext().get().longValue());
-//    }
+    @Test
+    public void testQueryAllVertices() throws Exception {
+        assertEquals("Expected the correct number of VERTICES",
+                12, graph.traversal().V().count().tryNext().get().longValue());
+    }
+
+    @Test
+    public void testQueryAllEdges() throws Exception {
+        assertEquals("Expected the correct number of EDGES",
+                17, graph.traversal().E().count().tryNext().get().longValue());
+    }
 }

@@ -34,6 +34,7 @@
         <assertj.version>3.9.0</assertj.version>
 
         <aerospike-client.version>4.3.1</aerospike-client.version>
+        <janusgraph.version>0.3.1</janusgraph.version>
     </properties>
 
 
@@ -43,7 +44,7 @@
             <dependency>
                 <groupId>org.janusgraph</groupId>
                 <artifactId>janusgraph-core</artifactId>
-                <version>0.3.1</version>
+                <version>${janusgraph.version}</version>
             </dependency>
 
             <dependency>
@@ -52,13 +53,14 @@
                 <version>${aerospike-client.version}</version>
             </dependency>
 
-            <dependency>
-                <groupId>com.aerospike</groupId>
-                <artifactId>aerospike-reactor-client</artifactId>
-                <version>${aerospike-client.version}</version>
-            </dependency>
-
             <!--Test-->
+
+            <dependency>
+                <groupId>org.janusgraph</groupId>
+                <artifactId>janusgraph-test</artifactId>
+                <version>${janusgraph.version}</version>
+                <scope>test</scope>
+            </dependency>
 
             <dependency>
                 <groupId>junit</groupId>
