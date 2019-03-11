@@ -35,6 +35,10 @@
 
         <aerospike-client.version>4.3.1</aerospike-client.version>
         <janusgraph.version>0.3.1</janusgraph.version>
+
+        <!--plugins -->
+        <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
+        <maven-surefire-plugin.version>2.19.1</maven-surefire-plugin.version>
     </properties>
 
 

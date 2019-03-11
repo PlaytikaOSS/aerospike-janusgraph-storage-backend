@@ -1,6 +1,5 @@
 package com.playtika.janusgraph.aerospike;
 
-import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
 import org.janusgraph.diskstorage.common.AbstractStoreTransaction;
 
@@ -9,23 +8,19 @@ import java.util.List;
 
 final class AerospikeTransaction extends AbstractStoreTransaction {
 
-    private final AerospikeStoreManager storeManager;
     private final List<AerospikeLock> locks = new ArrayList<>();
 
-    AerospikeTransaction(final BaseTransactionConfig config, AerospikeStoreManager storeManager) {
+    AerospikeTransaction(final BaseTransactionConfig config) {
         super(config);
-        this.storeManager = storeManager;
     }
 
     @Override
-    public void commit() throws BackendException {
-        storeManager.releaseLocks(locks);
+    public void commit() {
         locks.clear();
     }
 
     @Override
-    public void rollback() throws BackendException {
-        storeManager.releaseLocks(locks);
+    public void rollback() {
         locks.clear();
     }
 

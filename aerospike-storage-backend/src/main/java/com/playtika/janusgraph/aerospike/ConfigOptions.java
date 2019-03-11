@@ -9,7 +9,7 @@ public class ConfigOptions {
     public static final ConfigOption<String> NAMESPACE = new ConfigOption<>(STORAGE_NS,
             "namespace", "Aerospike namespace to use", ConfigOption.Type.LOCAL, "test");
 
-    public static final ConfigOption<Boolean> PESSIMISTIC_LOCKING = new ConfigOption<>(STORAGE_NS,
+    public static final ConfigOption<Boolean> USE_LOCKING = new ConfigOption<>(STORAGE_NS,
             "pessimistic_locking", "Whether to use pessimistic locking", ConfigOption.Type.LOCAL, Boolean.TRUE);
 
 
