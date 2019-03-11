@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
@@ -29,23 +30,26 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         mutatePolicy.respondAllOps = true;
     }
 
-
     static final String ENTRIES_BIN_NAME = "entries";
 
     private final String namespace;
     private final String name; //used as set name
     private final Configuration configuration;
     private final AerospikeClient client;
+    private final Executor scanExecutor;
     private final LockOperations lockOperations;
 
     AerospikeKeyColumnValueStore(String name,
                                  AerospikeClient client,
-                                 Configuration configuration) {
+                                 Configuration configuration,
+                                 Executor aerospikeExecutor,
+                                 Executor scanExecutor) {
         this.namespace = configuration.get(NAMESPACE);
         this.name = name;
         this.client = client;
         this.configuration = configuration;
-        this.lockOperations = new LockOperationsUdf(client, this, configuration);
+        this.scanExecutor = scanExecutor;
+        this.lockOperations = new LockOperationsUdf(client, this, configuration, aerospikeExecutor);
     }
 
     @Override // This method is only supported by stores which keep keys in byte-order.
@@ -53,6 +57,12 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Used to add new index on existing graph
+     * @param query
+     * @param txh
+     * @return
+     */
     @Override // This method is only supported by stores which do not keep keys in byte-order.
     public KeyIterator getKeys(SliceQuery query, StoreTransaction txh) {
         if(!configuration.get(ALLOW_SCAN)){
@@ -63,14 +73,13 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
         AerospikeKeyIterator keyIterator = new AerospikeKeyIterator(client);
 
-        Thread thread = new Thread(() -> {
+        scanExecutor.execute(() -> {
             try {
                 client.scanAll(scanPolicy, namespace, name, keyIterator);
             } finally {
                 keyIterator.terminate();
             }
         });
-        thread.start();
 
         return keyIterator;
     }
@@ -154,8 +163,6 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         }
 
         Key aerospikeKey = getKey(key);
-        WritePolicy mutatePolicy = new WritePolicy();
-        mutatePolicy.respondAllOps = true;
         Record record = client.operate(null, aerospikeKey, operations.toArray(new Operation[0]));
         if(entriesNoOperationIndex != -1){
             long entriesNoAfterMutation = (Long)record.getList(ENTRIES_BIN_NAME).get(entriesNoOperationIndex);

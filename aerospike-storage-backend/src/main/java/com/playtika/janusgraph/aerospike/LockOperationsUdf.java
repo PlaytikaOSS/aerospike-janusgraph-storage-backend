@@ -8,11 +8,17 @@ import org.janusgraph.diskstorage.TemporaryBackendException;
 import org.janusgraph.diskstorage.configuration.Configuration;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.getValue;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.LOCK_TTL;
 import static com.playtika.janusgraph.aerospike.LockOperationsUdf.LockResult.*;
+import static com.playtika.janusgraph.aerospike.util.AsyncUtil.allOf;
+import static java.util.concurrent.CompletableFuture.runAsync;
 
 class LockOperationsUdf implements LockOperations{
 
@@ -23,36 +29,48 @@ class LockOperationsUdf implements LockOperations{
     private final AerospikeClient client;
     private final AerospikeKeyColumnValueStore store;
     private final long lockTtl;
+    private final Executor aerospikeExecutor;
 
     LockOperationsUdf(AerospikeClient client,
                       AerospikeKeyColumnValueStore store,
-                      Configuration configuration) {
+                      Configuration configuration, Executor aerospikeExecutor) {
         this.client = client;
         this.store = store;
 
         lockTtl = configuration.get(LOCK_TTL);
+        this.aerospikeExecutor = aerospikeExecutor;
     }
 
     @Override
     public void acquireLocks(Map<StaticBuffer, List<AerospikeLock>> locks) throws BackendException {
-        Map<LockResult, List<Key>> lockResults = new HashMap<>();
+        Map<LockResult, List<Key>> lockResults = new ConcurrentHashMap<>();
 
         try {
 
-            for (Map.Entry<StaticBuffer, List<AerospikeLock>> locksForKey : locks.entrySet()) {
-                Key key = store.getKey(locksForKey.getKey());
-                LockResult lockResult = checkAndLock(client, key, lockTtl,
-                        buildExpectedValues(mergeLocks(locksForKey.getValue())));
-                lockResults.compute(lockResult, (result, values) -> {
-                    List<Key> resultValues = values != null ? values : new ArrayList<>();
-                    resultValues.add(key);
-                    return resultValues;
-                });
+            List<CompletableFuture<?>> futures = new ArrayList<>();
+            AtomicBoolean lockFailed = new AtomicBoolean(false);
 
-                if(lockResult != LOCKED){
-                    break;
-                }
+            for (Map.Entry<StaticBuffer, List<AerospikeLock>> locksForKey : locks.entrySet()) {
+                futures.add(runAsync(() -> {
+                    if(lockFailed.get()){
+                        return;
+                    }
+
+                    Key key = store.getKey(locksForKey.getKey());
+                    LockResult lockResult = checkAndLock(client, key, lockTtl,
+                            buildExpectedValues(mergeLocks(locksForKey.getValue())));
+                    lockResults.compute(lockResult, (result, values) -> {
+                        List<Key> resultValues = values != null ? values : new ArrayList<>();
+                        resultValues.add(key);
+                        return resultValues;
+                    });
+                    if(lockResult != LOCKED){
+                        lockFailed.set(true);
+                    }
+                }, aerospikeExecutor));
             }
+
+            allOf(futures);
 
             if(lockResults.keySet().contains(CHECK_FAILED)){
                 throw new PermanentBackendException("Some pre-lock checks failed:"+lockResults.keySet());
@@ -98,7 +116,8 @@ class LockOperationsUdf implements LockOperations{
 
     private void releaseLocks(List<Key> keys) {
         if(keys != null) {
-            keys.forEach(key -> {
+            List<CompletableFuture<?>> futures = new ArrayList<>();
+            keys.forEach(key -> futures.add(runAsync(() -> {
                 try {
                     client.operate(null, key, UNLOCK_OPERATION);
                 } catch (AerospikeException e) {
@@ -106,7 +125,8 @@ class LockOperationsUdf implements LockOperations{
                         throw e;
                     }
                 }
-            });
+            })));
+            allOf(futures);
         }
     }
 

@@ -3,6 +3,7 @@ package com.playtika.janusgraph.aerospike;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
+import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.example.GraphOfTheGodsFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -10,6 +11,8 @@ import org.junit.Test;
 
 import java.util.Iterator;
 
+import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 import static org.junit.Assert.*;
 
 public class GraphOfTheGodsTest {
@@ -20,11 +23,15 @@ public class GraphOfTheGodsTest {
     public void buildGraph(){
         AerospikeTestUtils.deleteAllRecords("test");
 
-//        graph = JanusGraphFactory.build().set("storage.backend", "inmemory").open();
-        graph = JanusGraphFactory.build()
-                .set("storage.backend", "com.playtika.janusgraph.aerospike.AerospikeStoreManager")
-                .set("storage.allow_scan", "true")
-                .open();
+        ModifiableConfiguration config = buildGraphConfiguration();
+        config.set(STORAGE_BACKEND, "com.playtika.janusgraph.aerospike.AerospikeStoreManager");
+//        config.set(STORAGE_BACKEND, "inmemory");
+        //!!! need to prevent small batches mutations as we use deferred locking approach !!!
+        config.set(BUFFER_SIZE, Integer.MAX_VALUE);
+        config.set(ALLOW_SCAN, true);  //for test purposes only
+
+        graph = JanusGraphFactory.open(config);
+
         GraphOfTheGodsFactory.loadWithoutMixedIndex(graph, true);
     }
 
