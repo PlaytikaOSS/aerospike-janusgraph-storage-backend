@@ -119,21 +119,14 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
     @Override
     public void mutate(StaticBuffer key, List<Entry> additions, List<StaticBuffer> deletions, StoreTransaction txh) throws BackendException {
         AerospikeTransaction transaction = (AerospikeTransaction)txh;
-        for(AerospikeLock lock : transaction.getLocks()){
-            if(lock.key.compareTo(key) != 0){
-                throw new IllegalArgumentException("Unexpected lock in direct mutation transaction:" + lock);
-            }
-        }
+        StoreLocks locks = new StoreLocks(name, transaction.getLocks());
 
-        AerospikeLocks locks = new AerospikeLocks(transaction.getLocks().size());
-        locks.addLocks(transaction.getLocks());
+        lockOperations.acquireLocks(locks.locksMap);
 
-        lockOperations.acquireLocks(locks.getLocksMap());
-
-        mutate(key, additions, deletions, false);
+        mutate(key, additions, deletions);
     }
 
-    void mutate(StaticBuffer key, List<Entry> additions, List<StaticBuffer> deletions, boolean andUnlock) {
+    void mutate(StaticBuffer key, List<Entry> additions, List<StaticBuffer> deletions) {
         List<Operation> operations = new ArrayList<>(3);
 
         if(!deletions.isEmpty()) {
@@ -158,9 +151,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
             operations.add(MapOperation.size(ENTRIES_BIN_NAME));
         }
 
-        if(andUnlock){
-            operations.add(UNLOCK_OPERATION);
-        }
+        operations.add(UNLOCK_OPERATION);
 
         Key aerospikeKey = getKey(key);
         Record record = client.operate(null, aerospikeKey, operations.toArray(new Operation[0]));

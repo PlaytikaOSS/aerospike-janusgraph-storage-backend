@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import java.util.Iterator;
 
+import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.AEROSPIKE_BUFFER_SIZE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 import static org.junit.Assert.*;
@@ -27,7 +28,7 @@ public class GraphOfTheGodsTest {
         config.set(STORAGE_BACKEND, "com.playtika.janusgraph.aerospike.AerospikeStoreManager");
 //        config.set(STORAGE_BACKEND, "inmemory");
         //!!! need to prevent small batches mutations as we use deferred locking approach !!!
-        config.set(BUFFER_SIZE, Integer.MAX_VALUE);
+        config.set(BUFFER_SIZE, AEROSPIKE_BUFFER_SIZE);
         config.set(ALLOW_SCAN, true);  //for test purposes only
 
         graph = JanusGraphFactory.open(config);

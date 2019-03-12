@@ -1,2 +1,2 @@
-# gzip-reactive
-Reactive gzip encoder/decoder
+# aerospike storage backend
+Aerospike storage backend for Janusgraph
