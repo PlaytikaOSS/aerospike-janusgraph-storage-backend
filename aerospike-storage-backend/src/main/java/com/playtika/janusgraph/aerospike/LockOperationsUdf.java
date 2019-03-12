@@ -4,8 +4,9 @@ import com.aerospike.client.*;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.diskstorage.StaticBuffer;
-import org.janusgraph.diskstorage.TemporaryBackendException;
 import org.janusgraph.diskstorage.configuration.Configuration;
+import org.janusgraph.diskstorage.locking.PermanentLockingException;
+import org.janusgraph.diskstorage.locking.TemporaryLockingException;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -73,9 +74,9 @@ class LockOperationsUdf implements LockOperations{
             allOf(futures);
 
             if(lockResults.keySet().contains(CHECK_FAILED)){
-                throw new PermanentBackendException("Some pre-lock checks failed:"+lockResults.keySet());
+                throw new PermanentLockingException("Some pre-lock checks failed:"+lockResults.keySet());
             } else if(lockResults.keySet().contains(ALREADY_LOCKED)){
-                throw new TemporaryBackendException("Some locks not released yet:"+lockResults.keySet());
+                throw new TemporaryLockingException("Some locks not released yet:"+lockResults.keySet());
             }
 
         } catch (Throwable t){
@@ -107,25 +108,18 @@ class LockOperationsUdf implements LockOperations{
     }
 
     @Override
-    public void releaseLockOnKeys(Collection<StaticBuffer> keys) {
+    public void releaseLockOnKeys(Collection<StaticBuffer> keys) throws PermanentBackendException {
         releaseLocks(keys.stream()
                 .map(store::getKey)
                 .collect(Collectors.toList())
         );
     }
 
-    private void releaseLocks(List<Key> keys) {
-        if(keys != null) {
+    private void releaseLocks(List<Key> keys) throws PermanentBackendException {
+        if(keys != null && !keys.isEmpty()) {
             List<CompletableFuture<?>> futures = new ArrayList<>();
-            keys.forEach(key -> futures.add(runAsync(() -> {
-                try {
-                    client.operate(null, key, UNLOCK_OPERATION);
-                } catch (AerospikeException e) {
-                    if(e.getResultCode() != ResultCode.KEY_NOT_FOUND_ERROR){
-                        throw e;
-                    }
-                }
-            })));
+            keys.forEach(key -> futures.add(runAsync(
+                    () -> client.operate(null, key, UNLOCK_OPERATION))));
             allOf(futures);
         }
     }

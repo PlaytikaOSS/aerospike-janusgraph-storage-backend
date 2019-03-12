@@ -1,6 +1,7 @@
 package com.playtika.janusgraph.aerospike;
 
 import org.janusgraph.diskstorage.BackendException;
+import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.diskstorage.StaticBuffer;
 
 import java.util.Collection;
@@ -11,5 +12,5 @@ interface LockOperations {
 
     void acquireLocks(Map<StaticBuffer, List<AerospikeLock>> locks) throws BackendException;
 
-    void releaseLockOnKeys(Collection<StaticBuffer> keys);
+    void releaseLockOnKeys(Collection<StaticBuffer> keys) throws PermanentBackendException;
 }

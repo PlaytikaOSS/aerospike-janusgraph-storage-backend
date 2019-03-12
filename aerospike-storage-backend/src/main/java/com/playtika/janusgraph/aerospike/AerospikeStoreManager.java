@@ -26,24 +26,22 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 public class AerospikeStoreManager extends AbstractStoreManager implements KeyColumnValueStoreManager {
 
     private static final int DEFAULT_PORT = 3000;
+    static final int AEROSPIKE_BUFFER_SIZE = Integer.MAX_VALUE / 2;
 
     private final StoreFeatures features;
 
     private final AerospikeClient client;
 
     private final Configuration configuration;
-    private final boolean useLocking;
 
-    private final ThreadPoolExecutor scanExecutor = new ThreadPoolExecutor(0, 1,
-            1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
+    private final ThreadPoolExecutor scanExecutor;
 
-    private final ThreadPoolExecutor aerospikeExecutor = new ThreadPoolExecutor(4, 40,
-            1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
+    private final ThreadPoolExecutor aerospikeExecutor;
 
     public AerospikeStoreManager(Configuration configuration) {
         super(configuration);
 
-        Preconditions.checkArgument(configuration.get(BUFFER_SIZE) == Integer.MAX_VALUE,
+        Preconditions.checkArgument(configuration.get(BUFFER_SIZE) == AEROSPIKE_BUFFER_SIZE,
                 "Set unlimited buffer size as we use deferred locking approach");
 
         int port = storageConfig.has(STORAGE_PORT) ? storageConfig.get(STORAGE_PORT) : DEFAULT_PORT;
@@ -63,13 +61,16 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         client = new AerospikeClient(clientPolicy, hosts);
 
         this.configuration = configuration;
-        this.useLocking = configuration.get(USE_LOCKING);
 
         features = new StandardStoreFeatures.Builder()
                 .keyConsistent(configuration)
                 .persists(true)
-                .locking(useLocking)
-                .optimisticLocking(true)  //caused by deferred locking, actual locking happens just before transaction commit
+                //here we promise to take care of locking.
+                //If false janusgraph will do it via ExpectedValueCheckingStoreManager that is less effective
+                .locking(true)
+                //caused by deferred locking approach used in this storage backend,
+                //actual locking happens just before transaction commit
+                .optimisticLocking(true)
                 .distributed(true)
                 .multiQuery(true)
                 .batchMutation(true)
@@ -83,6 +84,12 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 .build();
 
         registerUdfs(client);
+
+        scanExecutor = new ThreadPoolExecutor(0, configuration.get(SCAN_PARALLELISM),
+                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
+
+        aerospikeExecutor = new ThreadPoolExecutor(4, configuration.get(AEROSPIKE_PARALLELISM),
+                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
     }
 
     static void registerUdfs(AerospikeClient client){
@@ -109,7 +116,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     @Override
     public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) throws BackendException {
-        Map<String, AerospikeLocks> locksByStore = acquireLocks(((AerospikeTransaction) txh).getLocks(), mutations);
+        List<StoreLocks> locksByStore = acquireLocks(((AerospikeTransaction) txh).getLocks());
 
         try {
             Map<String, Set<StaticBuffer>> mutatedByStore = mutateMany(mutations);
@@ -120,7 +127,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         }
     }
 
-    private Map<String, Set<StaticBuffer>> mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations) {
+    private Map<String, Set<StaticBuffer>> mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations) throws PermanentBackendException {
 
         List<CompletableFuture<?>> futures = new ArrayList<>();
         Map<String, Set<StaticBuffer>> mutatedByStore = new ConcurrentHashMap<>();
@@ -128,7 +135,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         mutations.forEach((storeName, entry) -> {
             final AerospikeKeyColumnValueStore store = openDatabase(storeName);
             entry.forEach((key, mutation) -> futures.add(runAsync(() -> {
-                store.mutate(key, mutation.getAdditions(), mutation.getDeletions(), useLocking);
+                store.mutate(key, mutation.getAdditions(), mutation.getDeletions());
                 mutatedByStore.compute(storeName, (s, keys) -> {
                     Set<StaticBuffer> keysResult = keys != null ? keys : new HashSet<>();
                     keysResult.add(key);
@@ -142,49 +149,31 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         return mutatedByStore;
     }
 
-    private Map<String, AerospikeLocks> acquireLocks(List<AerospikeLock> locks, Map<String, Map<StaticBuffer, KCVMutation>> mutations) throws BackendException {
+    private List<StoreLocks> acquireLocks(List<AerospikeLock> locks) throws BackendException {
         Map<String, List<AerospikeLock>> locksByStore = locks.stream()
                 .collect(Collectors.groupingBy(lock -> lock.storeName));
-        Map<String, AerospikeLocks> locksAllByStore = new HashMap<>(locksByStore.size());
+        List<StoreLocks> locksAllByStore = new ArrayList<>(locksByStore.size());
         for(Map.Entry<String, List<AerospikeLock>> entry : locksByStore.entrySet()){
             String storeName = entry.getKey();
             List<AerospikeLock> locksForStore = entry.getValue();
-            Map<StaticBuffer, KCVMutation> mutationsForStore = mutations.getOrDefault(storeName, emptyMap());
-            AerospikeLocks locksAll = new AerospikeLocks(locksForStore.size() + mutationsForStore.size());
-            locksAll.addLocks(locksForStore);
-            if (useLocking) {
-                locksAll.addLockOnKeys(mutationsForStore.keySet());
-            }
-
+            StoreLocks storeLocks = new StoreLocks(storeName, locksForStore);
             final AerospikeKeyColumnValueStore store = openDatabase(storeName);
-            store.getLockOperations().acquireLocks(locksAll.getLocksMap());
-            locksAllByStore.put(storeName, locksAll);
+            store.getLockOperations().acquireLocks(storeLocks.locksMap);
+            locksAllByStore.add(storeLocks);
         }
         return locksAllByStore;
     }
 
-    private void releaseLocks(Map<String, AerospikeLocks> locksByStore, Map<String, Set<StaticBuffer>> mutatedByStore){
-        locksByStore.forEach((storeName, locksForStore) -> {
-            final AerospikeKeyColumnValueStore store = openDatabase(storeName);
-            Set<StaticBuffer> mutatedForStore = mutatedByStore.get(storeName);
-            List<StaticBuffer> keysToRelease = locksForStore.getLocksMap().keySet().stream()
+    private void releaseLocks(List<StoreLocks> locksByStore, Map<String, Set<StaticBuffer>> mutatedByStore) throws PermanentBackendException {
+        for(StoreLocks storeLocks : locksByStore){
+            final AerospikeKeyColumnValueStore store = openDatabase(storeLocks.storeName);
+            Set<StaticBuffer> mutatedForStore = mutatedByStore.get(storeLocks.storeName);
+            List<StaticBuffer> keysToRelease = storeLocks.locksMap.keySet().stream()
                     //ignore mutated keys as they already have been released
                     .filter(key -> !mutatedForStore.contains(key))
                     .collect(Collectors.toList());
             store.getLockOperations().releaseLockOnKeys(keysToRelease);
-        });
-    }
-
-    //called from AerospikeTransaction
-    void releaseLocks(List<AerospikeLock> locks){
-        Map<String, List<AerospikeLock>> locksByStore = locks.stream()
-                .collect(Collectors.groupingBy(lock -> lock.storeName));
-        locksByStore.forEach((storeName, locksForStore) -> {
-            AerospikeLocks locksAll = new AerospikeLocks(locksForStore.size());
-            locksAll.addLocks(locksForStore);
-            final AerospikeKeyColumnValueStore store = openDatabase(storeName);
-            store.getLockOperations().releaseLockOnKeys(locksAll.getLocksMap().keySet());
-        });
+        }
     }
 
     @Override
