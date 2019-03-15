@@ -23,14 +23,14 @@ import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENT
  */
 public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
 
-    private final AerospikeClient aerospikeClient;
+    private final IAerospikeClient aerospikeClient;
     private BlockingQueue<KeyRecord> queue = new LinkedBlockingQueue<>(100);
     private KeyRecord next;
     private KeyRecord current;
 
     private static final KeyRecord TERMINATE_VALUE = new KeyRecord(null, null);
 
-    AerospikeKeyIterator(AerospikeClient aerospikeClient) {
+    AerospikeKeyIterator(IAerospikeClient aerospikeClient) {
         this.aerospikeClient = aerospikeClient;
     }
 

@@ -1,16 +1,229 @@
 package com.playtika.janusgraph.aerospike;
 
+import com.aerospike.client.*;
+import com.aerospike.client.cdt.MapOperation;
+import com.aerospike.client.cdt.MapReturnType;
+import com.aerospike.client.policy.RecordExistsAction;
+import com.aerospike.client.policy.WritePolicy;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.PermanentBackendException;
-import org.janusgraph.diskstorage.StaticBuffer;
+import org.janusgraph.diskstorage.locking.PermanentLockingException;
+import org.janusgraph.diskstorage.locking.TemporaryLockingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-interface LockOperations {
+import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENTRIES_BIN_NAME;
+import static com.playtika.janusgraph.aerospike.LockOperations.LockType.LOCKED;
+import static com.playtika.janusgraph.aerospike.LockOperations.LockType.SAME_TRANSACTION;
+import static com.playtika.janusgraph.aerospike.util.AsyncUtil.completeAll;
+import static java.util.concurrent.CompletableFuture.runAsync;
 
-    void acquireLocks(Map<StaticBuffer, List<AerospikeLock>> locks) throws BackendException;
+class LockOperations {
 
-    void releaseLockOnKeys(Collection<StaticBuffer> keys) throws PermanentBackendException;
+    private static Logger logger = LoggerFactory.getLogger(LockOperations.class);
+
+    private static final String TRANSACTION_BIN_NAME = "transaction";
+
+    private static final WritePolicy checkValuesPolicy = new WritePolicy();
+    static {
+        checkValuesPolicy.respondAllOps = true;
+    }
+
+    private final String namespace;
+    private final IAerospikeClient client;
+    private final Executor aerospikeExecutor;
+    private final WritePolicy putLockPolicy;
+
+    LockOperations(IAerospikeClient client,
+                   String namespace,
+                   Executor aerospikeExecutor) {
+        this.namespace = namespace;
+        this.client = client;
+        this.aerospikeExecutor = aerospikeExecutor;
+
+        putLockPolicy = new WritePolicy();
+        putLockPolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
+        putLockPolicy.expiration = 0;  //never expire
+    }
+
+    Set<Key> acquireLocks(Value transactionId, Map<String, Map<Value, Map<Value, Value>>> locksByStore,
+                          boolean checkTransactionId) throws BackendException {
+        Map<Key, LockType> keysLocked = putLocks(transactionId, locksByStore, checkTransactionId);
+        try {
+            checkExpectedValues(locksByStore, keysLocked);
+        } catch (Throwable t){
+            releaseLocks(keysLocked.keySet());
+            throw t;
+        }
+        return keysLocked.keySet();
+    }
+
+    private Map<Key, LockType> putLocks(Value transactionId, Map<String, Map<Value, Map<Value, Value>>> locksByStore,
+                              boolean checkTransactionId) throws BackendException {
+
+        Map<Key, LockType> keysLocked = new ConcurrentHashMap<>();
+        List<CompletableFuture<?>> futures = new ArrayList<>();
+        AtomicBoolean alreadyLocked = new AtomicBoolean(false);
+
+        try {
+            for (Map.Entry<String, Map<Value, Map<Value, Value>>> locksForStore : locksByStore.entrySet()) {
+                String storeName = locksForStore.getKey();
+                for (Value key : locksForStore.getValue().keySet()) {
+                    futures.add(runAsync(() -> {
+                        if (alreadyLocked.get()) {
+                            return;
+                        }
+                        Key lockKey = getLockKey(storeName, key);
+                        try {
+                            LockType lockType = putLock(transactionId, lockKey, checkTransactionId);
+                            keysLocked.put(lockKey, lockType);
+
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("acquired lock key: {}, txId:{}", lockKey, transactionId);
+                            }
+                        } catch (AerospikeException e) {
+                            if (e.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
+                                alreadyLocked.set(true);
+                                logger.info("already locked key: {}, txId:{}", lockKey, transactionId);
+                            } else {
+                                throw e;
+                            }
+                        }
+                    }, aerospikeExecutor));
+                }
+            }
+
+            completeAll(futures);
+
+            if (alreadyLocked.get()) {
+                throw new TemporaryLockingException("Some locks not released yet");
+            }
+        } catch (Throwable t) {
+            releaseLocks(keysLocked.keySet());
+            throw t;
+        }
+
+        return keysLocked;
+    }
+
+    enum LockType {
+        LOCKED,
+        SAME_TRANSACTION
+    }
+
+    private LockType putLock(Value transactionId, Key lockKey, boolean checkTransactionId) {
+        //this is used only by WriteAheadLogCompleter to skip already locked keys
+        if(checkTransactionId){
+            try {
+                client.add(putLockPolicy, lockKey, new Bin(TRANSACTION_BIN_NAME, transactionId));
+                return LOCKED;
+            } catch (AerospikeException e) {
+                //check for same transaction
+                if (e.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
+                    Record record = client.get(null, lockKey);
+                    Value transactionIdLocked = Value.get(record.getValue(TRANSACTION_BIN_NAME));
+                    if(transactionId.equals(transactionIdLocked)){
+                        return SAME_TRANSACTION;
+                    }
+                }
+                throw e;
+            }
+        } else {
+            client.add(putLockPolicy, lockKey, new Bin(TRANSACTION_BIN_NAME, transactionId));
+            return LOCKED;
+        }
+    }
+
+    void releaseLocks(Collection<Key> keys) {
+        keys.forEach(key -> client.delete(null, key));
+    }
+
+    private void checkExpectedValues(final Map<String, Map<Value, Map<Value, Value>>> locksByStore,
+                                     final Map<Key, LockType> keysLocked) throws PermanentBackendException {
+        List<CompletableFuture<?>> futures = new ArrayList<>();
+        AtomicBoolean checkFailed = new AtomicBoolean(false);
+
+        for (Map.Entry<String, Map<Value, Map<Value, Value>>> locksForStore : locksByStore.entrySet()) {
+            String storeName = locksForStore.getKey();
+            for (Map.Entry<Value, Map<Value, Value>> locksForKey : locksForStore.getValue().entrySet()) {
+                if(keysLocked.get(getLockKey(storeName, locksForKey.getKey())) == SAME_TRANSACTION){
+                    continue;
+                }
+                futures.add(runAsync(() -> {
+                    if(checkFailed.get()){
+                        return;
+                    }
+                    if(!checkColumnValues(getKey(storeName, locksForKey.getKey()), locksForKey.getValue())){
+                        checkFailed.set(true);
+                    }
+                }));
+            }
+        }
+
+        completeAll(futures);
+
+        if (checkFailed.get()) {
+            throw new PermanentLockingException("Some values don't match expected values");
+        }
+    }
+
+
+    private boolean checkColumnValues(final Key key, final Map<Value, Value> locksForKey) {
+        if(locksForKey.isEmpty()){
+            return true;
+        }
+
+        int columnsNo = locksForKey.size();
+        Value[] columns = new Value[columnsNo];
+        Operation[] operations = new Operation[columnsNo];
+        int i = 0;
+        for(Value column : locksForKey.keySet()){
+            columns[i] = column;
+            operations[i] = MapOperation.getByKey(ENTRIES_BIN_NAME, column, MapReturnType.VALUE);
+            i++;
+        }
+        Record record = client.operate(checkValuesPolicy, key, operations);
+        if(record != null){
+            if(columnsNo > 1){
+                List<?> resultList;
+                if((resultList = record.getList(ENTRIES_BIN_NAME)) != null){
+                    for(int j = 0, n = resultList.size(); j < n; j++){
+                        Value column = columns[j];
+                        if(!checkValue(key, column, locksForKey.get(column), (byte[])resultList.get(j))){
+                            return false;
+                        }
+                    }
+                }
+            } else if(columnsNo == 1){
+                byte[] actualValueData = (byte[])record.getValue(ENTRIES_BIN_NAME);
+                Value column = columns[0];
+                return checkValue(key, column, locksForKey.get(column), actualValueData);
+            }
+        }
+        return true;
+    }
+
+    private boolean checkValue(Key key, Value column, Value expectedValue, byte[] actualValue) {
+        if(expectedValue.equals(Value.get(actualValue))){
+            return true;
+        } else {
+            logger.info("Unexpected value for key {}, column {}, expected {}, actual {}", key, column, expectedValue, actualValue);
+            return false;
+        }
+    }
+
+    private Key getLockKey(String setName, Value value) {
+        return new Key(namespace, setName + ".lock", value);
+    }
+
+    private Key getKey(String setName, Value value) {
+        return new Key(namespace, setName, value);
+    }
+
 }
