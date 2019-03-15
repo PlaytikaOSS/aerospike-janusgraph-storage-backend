@@ -4,30 +4,35 @@ import com.aerospike.client.*;
 import com.aerospike.client.cdt.*;
 import com.aerospike.client.policy.ScanPolicy;
 import com.aerospike.client.policy.WritePolicy;
+import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
 import org.janusgraph.diskstorage.*;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.keycolumnvalue.*;
 import org.janusgraph.diskstorage.util.EntryArrayList;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.janusgraph.diskstorage.util.StaticArrayEntry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executor;
 
+import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.groupLocksByStoreKeyColumn;
+import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.mutationToMap;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
-import static com.playtika.janusgraph.aerospike.LockOperationsUdf.UNLOCK_OPERATION;
+import static java.util.Collections.*;
 
-public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
+public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
+
+    private static Logger logger = LoggerFactory.getLogger(AerospikeKeyColumnValueStore.class);
 
     private static final MapPolicy mapPolicy = new MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE);
 
     private static final WritePolicy mutatePolicy = new WritePolicy();
     static {
         mutatePolicy.respondAllOps = true;
+        mutatePolicy.sendKey = true;
     }
 
     static final String ENTRIES_BIN_NAME = "entries";
@@ -35,21 +40,25 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
     private final String namespace;
     private final String name; //used as set name
     private final Configuration configuration;
-    private final AerospikeClient client;
+    private final IAerospikeClient client;
     private final Executor scanExecutor;
     private final LockOperations lockOperations;
+    private final WriteAheadLogManager writeAheadLogManager;
 
-    AerospikeKeyColumnValueStore(String name,
-                                 AerospikeClient client,
+    AerospikeKeyColumnValueStore(String namespace,
+                                 String name,
+                                 IAerospikeClient client,
                                  Configuration configuration,
-                                 Executor aerospikeExecutor,
-                                 Executor scanExecutor) {
-        this.namespace = configuration.get(NAMESPACE);
+                                 LockOperations lockOperations,
+                                 Executor scanExecutor,
+                                 WriteAheadLogManager writeAheadLogManager) {
+        this.namespace = namespace;
         this.name = name;
         this.client = client;
         this.configuration = configuration;
         this.scanExecutor = scanExecutor;
-        this.lockOperations = new LockOperationsUdf(client, this, configuration, aerospikeExecutor);
+        this.lockOperations = lockOperations;
+        this.writeAheadLogManager = writeAheadLogManager;
     }
 
     @Override // This method is only supported by stores which keep keys in byte-order.
@@ -119,42 +128,68 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
     @Override
     public void mutate(StaticBuffer key, List<Entry> additions, List<StaticBuffer> deletions, StoreTransaction txh) throws BackendException {
         AerospikeTransaction transaction = (AerospikeTransaction)txh;
-        StoreLocks locks = new StoreLocks(name, transaction.getLocks());
 
-        lockOperations.acquireLocks(locks.locksMap);
+        Map<String, Map<Value, Map<Value, Value>>> locksByStore = groupLocksByStoreKeyColumn(transaction.getLocks());
+        if(!singleton(name).containsAll(locksByStore.keySet())){
+            throw new IllegalArgumentException();
+        }
 
-        mutate(key, additions, deletions);
+        Map<Value, Map<Value, Value>> locks = locksByStore.getOrDefault(name, emptyMap());
+
+        Value keyValue = getValue(key);
+        //expect that locks contains key
+        if(!singleton(keyValue).containsAll(locks.keySet())){
+            throw new IllegalArgumentException();
+        }
+
+
+        Map<Value, Value> mutationMap = mutationToMap(new KCVMutation(additions, deletions));
+        Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = singletonMap(name, singletonMap(keyValue,
+                mutationMap));
+
+        Value transactionId = writeAheadLogManager.writeTransaction(locksByStore, mutationsByStore);
+
+        Set<Key> keysLocked = lockOperations.acquireLocks(transactionId, locksByStore, false);
+        try {
+            mutate(keyValue, mutationMap);
+        } catch (AerospikeException e) {
+            throw new PermanentBackendException(e);
+        } finally {
+            lockOperations.releaseLocks(keysLocked);
+            writeAheadLogManager.deleteTransaction(transactionId);
+        }
     }
 
-    void mutate(StaticBuffer key, List<Entry> additions, List<StaticBuffer> deletions) {
+    @Override
+    public void mutate(Value key, Map<Value, Value> mutation) {
         List<Operation> operations = new ArrayList<>(3);
 
-        if(!deletions.isEmpty()) {
-            List<Value> keysToRemove = new ArrayList<>(deletions.size());
-            for (StaticBuffer deletion : deletions) {
-                keysToRemove.add(getValue(deletion));
+        List<Value> keysToRemove = new ArrayList<>(mutation.size());
+        Map<Value, Value> itemsToAdd = new HashMap<>(mutation.size());
+        for(Map.Entry<Value, Value> entry : mutation.entrySet()){
+            if(entry.getValue() == Value.NULL){
+                keysToRemove.add(entry.getKey());
+            } else {
+                itemsToAdd.put(entry.getKey(), entry.getValue());
             }
+        }
+
+        if(!keysToRemove.isEmpty()) {
             operations.add(MapOperation.removeByKeyList(ENTRIES_BIN_NAME, keysToRemove, MapReturnType.NONE));
         }
 
-        if(!additions.isEmpty()) {
-            Map<Value, Value> itemsToAdd = new HashMap<>(additions.size());
-            for (Entry addition : additions) {
-                itemsToAdd.put(getValue(addition.getColumn()), getValue(addition.getValue()));
-            }
+        if(!itemsToAdd.isEmpty()) {
             operations.add(MapOperation.putItems(mapPolicy, ENTRIES_BIN_NAME, itemsToAdd));
         }
 
         int entriesNoOperationIndex = -1;
-        if(!deletions.isEmpty()){
+        if(!keysToRemove.isEmpty()){
             entriesNoOperationIndex = operations.size();
             operations.add(MapOperation.size(ENTRIES_BIN_NAME));
         }
 
-        operations.add(UNLOCK_OPERATION);
-
         Key aerospikeKey = getKey(key);
-        Record record = client.operate(null, aerospikeKey, operations.toArray(new Operation[0]));
+        Record record = client.operate(mutatePolicy, aerospikeKey, operations.toArray(new Operation[0]));
         if(entriesNoOperationIndex != -1){
             long entriesNoAfterMutation = (Long)record.getList(ENTRIES_BIN_NAME).get(entriesNoOperationIndex);
             if(entriesNoAfterMutation == 0){
@@ -173,8 +208,12 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         return result;
     }
 
-    Key getKey(StaticBuffer staticBuffer) {
+    private Key getKey(StaticBuffer staticBuffer) {
         return new Key(namespace, name, staticBuffer.getBytes(0, staticBuffer.length()));
+    }
+
+    Key getKey(Value value) {
+        return new Key(namespace, name, value);
     }
 
     static Value getValue(StaticBuffer staticBuffer) {
@@ -186,6 +225,9 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         //deferred locking approach
         //just add lock to transaction, actual lock will be acquired at commit phase
         ((AerospikeTransaction)txh).addLock(new AerospikeLock(name, key, column, expectedValue));
+        if(logger.isTraceEnabled()){
+            logger.trace("registered lock: {}:{}:{}:{}, tx:{}", name, key, column, expectedValue, txh);
+        }
     }
 
     @Override
@@ -196,7 +238,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         return name;
     }
 
-    public LockOperations getLockOperations() {
+    LockOperations getLockOperations() {
         return lockOperations;
     }
 

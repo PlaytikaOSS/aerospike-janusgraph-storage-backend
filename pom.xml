@@ -30,11 +30,13 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <junit.version>4.12</junit.version>
-        <assertj.version>3.9.0</assertj.version>
-
         <aerospike-client.version>4.3.1</aerospike-client.version>
         <janusgraph.version>0.3.1</janusgraph.version>
+
+        <junit.version>4.12</junit.version>
+        <assertj.version>3.9.0</assertj.version>
+        <slf4j-api.version>1.7.12</slf4j-api.version>
+        <log4j.version>2.11.1</log4j.version>
 
         <!--plugins -->
         <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
@@ -57,6 +59,13 @@
                 <version>${aerospike-client.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j-api.version}</version>
+                <scope>provided</scope>
+            </dependency>
+
             <!--Test-->
 
             <dependency>
@@ -77,6 +86,13 @@
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
                 <version>${assertj.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-slf4j-impl</artifactId>
+                <version>${log4j.version}</version>
                 <scope>test</scope>
             </dependency>
 
