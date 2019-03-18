@@ -5,8 +5,8 @@
 version: 2
 jobs:
   build:
-    docker:
-      - image: circleci/openjdk:11-browsers
+    machine:
+        image: circleci/classic:latest
 
     environment:
       # Customize the JVM maximum heap limit
@@ -20,6 +20,7 @@ jobs:
       - run:
           name: Run build with tests
           command:  if [[ -z "$GIT_USER_EMAIL" ]]; then  mvn clean install org.jacoco:jacoco-maven-plugin:prepare-agent -P sonar -U --batch-mode -Dmaven.test.redirectTestOutputToFile=true;fi
+          no_output_timeout: 20m
       - run:
            name: Save test results
            command: |
