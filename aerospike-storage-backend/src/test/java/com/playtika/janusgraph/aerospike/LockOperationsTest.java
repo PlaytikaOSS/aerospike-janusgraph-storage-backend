@@ -25,15 +25,15 @@ import static org.junit.Assert.fail;
 
 public class LockOperationsTest {
 
-    public static final Key KEY = new Key("test", "test", "test_key");
-    public static final Key LOCK_KEY = new Key("test", "test.lock", "test_key");
+    public static final Key KEY = new Key("test", "test.test", "test_key");
+    public static final Key LOCK_KEY = new Key("test", "test.test.lock", "test_key");
     public static final UUID TRANSACTION_ID = UUID.randomUUID();
     public static final Value COLUMN_NAME = Value.get("column_name");
     public static final Value COLUMN_NAME_2 = Value.get("column_name_2");
     public static final Value COLUMN_VALUE = Value.get(new byte[]{1, 2, 3});
     private static AerospikeClient client = new AerospikeClient(null, "localhost", 3000);
 
-    private static LockOperations lockOperations = new LockOperations(client, "test",
+    private static LockOperations lockOperations = new LockOperations(client, "test", "test",
             Executors.newSingleThreadExecutor());
 
     @Before

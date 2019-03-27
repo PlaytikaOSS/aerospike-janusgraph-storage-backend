@@ -52,7 +52,7 @@ public class GraphConsistencyAfterFailureTest {
 
     @Test
     public void shouldBecameConsistentAfterFailure() throws InterruptedException {
-        for(int i = 0; i < 10; i++) {
+        for(int i = 0; i < 20; i++) {
             AerospikeTestUtils.deleteAllRecords("test");
 
             JanusGraph graph = openGraph();
@@ -73,10 +73,9 @@ public class GraphConsistencyAfterFailureTest {
 
             if(failed) {
                 fails.set(false);
-                //wait for WriteAheadLogCompleter had fixed graph
-                Thread.sleep(STALE_TRANSACTION_THRESHOLD * 2);
                 time.set(STALE_TRANSACTION_THRESHOLD + 1);
-                Thread.sleep(STALE_TRANSACTION_THRESHOLD);
+                //wait for WriteAheadLogCompleter had fixed graph
+                Thread.sleep(STALE_TRANSACTION_THRESHOLD * 4);
 
                 //check graph. It should be fixed at this time
                 checkAndCleanGraph(graph);
@@ -188,9 +187,9 @@ public class GraphConsistencyAfterFailureTest {
         }
 
         @Override
-        void deleteTransaction(Value transactionId) {
+        void deleteWalTransaction(Value transactionId) {
             if(!fails.get()){
-                super.deleteTransaction(transactionId);
+                super.deleteWalTransaction(transactionId);
             }
         }
     }

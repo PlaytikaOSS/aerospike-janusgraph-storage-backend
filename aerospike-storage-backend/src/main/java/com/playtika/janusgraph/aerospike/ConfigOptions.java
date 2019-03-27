@@ -9,16 +9,12 @@ public class ConfigOptions {
     public static final ConfigOption<String> NAMESPACE = new ConfigOption<>(STORAGE_NS,
             "namespace", "Aerospike namespace to use", ConfigOption.Type.LOCAL, String.class);
 
-//    public static final ConfigOption<String> SET_NAME_PREFIX = new ConfigOption<>(STORAGE_NS,
-//            "set-prefix", "Aerospike set name prefix, allows to keep several graph in one namespace",
-//            ConfigOption.Type.LOCAL, String.class);
+    public static final ConfigOption<String> GRAPH_PREFIX = new ConfigOption<>(STORAGE_NS,
+            "graph-prefix", "Graph prefix, allows to keep several graph in one namespace",
+            ConfigOption.Type.LOCAL, String.class);
 
     public static final ConfigOption<String> WAL_NAMESPACE = new ConfigOption<>(STORAGE_NS,
             "wal-namespace", "Aerospike namespace to use for write ahead log",
-            ConfigOption.Type.LOCAL, String.class);
-
-    public static final ConfigOption<String> WAL_SET_NAME = new ConfigOption<>(STORAGE_NS,
-            "wal-set-name", "Aerospike set name to use for write ahead log",
             ConfigOption.Type.LOCAL, String.class);
 
     public static final ConfigOption<Boolean> ALLOW_SCAN = new ConfigOption<>(STORAGE_NS,

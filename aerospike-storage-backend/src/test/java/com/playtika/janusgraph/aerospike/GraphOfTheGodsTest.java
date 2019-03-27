@@ -3,7 +3,6 @@ package com.playtika.janusgraph.aerospike;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
-import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.example.GraphOfTheGodsFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -12,9 +11,6 @@ import org.junit.Test;
 import java.util.Iterator;
 
 import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.getAerospikeConfiguration;
-import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.AEROSPIKE_BUFFER_SIZE;
-import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 import static org.junit.Assert.*;
 
 public class GraphOfTheGodsTest {

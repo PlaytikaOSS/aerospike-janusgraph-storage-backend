@@ -37,14 +37,16 @@ class LockOperations {
 
     private final String namespace;
     private final IAerospikeClient client;
+    private String graphPrefix;
     private final Executor aerospikeExecutor;
     private final WritePolicy putLockPolicy;
 
     LockOperations(IAerospikeClient client,
-                   String namespace,
+                   String namespace, String graphPrefix,
                    Executor aerospikeExecutor) {
         this.namespace = namespace;
         this.client = client;
+        this.graphPrefix = graphPrefix + ".";
         this.aerospikeExecutor = aerospikeExecutor;
 
         putLockPolicy = new WritePolicy();
@@ -218,12 +220,15 @@ class LockOperations {
         }
     }
 
-    private Key getLockKey(String setName, Value value) {
-        return new Key(namespace, setName + ".lock", value);
+    private Key getLockKey(String storeName, Value value) {
+        return new Key(namespace, getSetName(storeName) + ".lock", value);
     }
 
-    private Key getKey(String setName, Value value) {
-        return new Key(namespace, setName, value);
+    private Key getKey(String storeName, Value value) {
+        return new Key(namespace, getSetName(storeName), value);
     }
 
+    protected String getSetName(String storeName) {
+        return graphPrefix + storeName;
+    }
 }
