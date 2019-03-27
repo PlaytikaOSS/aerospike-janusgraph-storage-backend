@@ -9,7 +9,7 @@ final class AerospikeLock {
     final StaticBuffer column;
     final StaticBuffer expectedValue;
 
-    public AerospikeLock(String storeName, StaticBuffer key, StaticBuffer column, StaticBuffer expectedValue) {
+    AerospikeLock(String storeName, StaticBuffer key, StaticBuffer column, StaticBuffer expectedValue) {
         this.storeName = storeName;
         this.key = key;
         this.column = column;

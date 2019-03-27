@@ -24,6 +24,9 @@ import java.util.stream.Stream;
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.getValue;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.completeAll;
+import static com.playtika.janusgraph.aerospike.util.AsyncUtil.shutdownAndAwaitTermination;
+import static java.util.Arrays.asList;
+import static java.util.concurrent.CompletableFuture.runAsync;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 
 
@@ -39,7 +42,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     private final Configuration configuration;
     private final String namespace;
-//    private final String setPrefix;
 
     private final LockOperations lockOperations;
 
@@ -49,6 +51,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     private final ThreadPoolExecutor scanExecutor;
 
     private final ThreadPoolExecutor aerospikeExecutor;
+    private final String graphPrefix;
 
 
     public AerospikeStoreManager(Configuration configuration) {
@@ -61,9 +64,30 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
         this.configuration = configuration;
         this.namespace = configuration.get(NAMESPACE);
-//        this.setPrefix = configuration.get(SET_NAME_PREFIX);
+        this.graphPrefix = configuration.get(GRAPH_PREFIX);
 
-        features = new StandardStoreFeatures.Builder()
+        features = features(configuration);
+
+        String walNamespace = configuration.get(WAL_NAMESPACE);
+        Long staleTransactionLifetimeThresholdInMs = configuration.get(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD);
+        String walSetName = graphPrefix + ".wal";
+        writeAheadLogManager = new WriteAheadLogManager(client, walNamespace, walSetName,
+                getClock(), staleTransactionLifetimeThresholdInMs);
+        writeAheadLogCompleter = new WriteAheadLogCompleter(client, walNamespace, walSetName,
+                writeAheadLogManager, staleTransactionLifetimeThresholdInMs, this);
+        writeAheadLogCompleter.start();
+
+        scanExecutor = new ThreadPoolExecutor(0, configuration.get(SCAN_PARALLELISM),
+                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
+
+        aerospikeExecutor = new ThreadPoolExecutor(4, configuration.get(AEROSPIKE_PARALLELISM),
+                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
+
+        lockOperations = new LockOperations(client, namespace, graphPrefix, aerospikeExecutor);
+    }
+
+    protected StandardStoreFeatures features(Configuration configuration) {
+        return new StandardStoreFeatures.Builder()
                 .keyConsistent(configuration)
                 .persists(true)
                 //here we promise to take care of locking.
@@ -83,51 +107,38 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 .timestamps(false)
                 .supportsInterruption(false)
                 .build();
-
-        String walNamespace = configuration.get(WAL_NAMESPACE);
-        String walSetName = configuration.get(WAL_SET_NAME);
-        Long staleTransactionLifetimeThresholdInMs = configuration.get(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD);
-        writeAheadLogManager = new WriteAheadLogManager(client, walNamespace, walSetName,
-                getClock(), staleTransactionLifetimeThresholdInMs);
-
-        writeAheadLogCompleter = new WriteAheadLogCompleter(client, walNamespace, walSetName,
-                writeAheadLogManager, staleTransactionLifetimeThresholdInMs, this);
-        writeAheadLogCompleter.start();
-
-        scanExecutor = new ThreadPoolExecutor(0, configuration.get(SCAN_PARALLELISM),
-                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
-
-        aerospikeExecutor = new ThreadPoolExecutor(4, configuration.get(AEROSPIKE_PARALLELISM),
-                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
-
-        lockOperations = new LockOperations(client, namespace, aerospikeExecutor);
     }
 
     Clock getClock() {
         return Clock.systemUTC();
     }
 
-    IAerospikeClient buildAerospikeClient(Configuration configuration){
+    private IAerospikeClient buildAerospikeClient(Configuration configuration){
         int port = storageConfig.has(STORAGE_PORT) ? storageConfig.get(STORAGE_PORT) : DEFAULT_PORT;
 
         Host[] hosts = Stream.of(configuration.get(STORAGE_HOSTS))
                 .map(hostname -> new Host(hostname, port)).toArray(Host[]::new);
 
+        ClientPolicy clientPolicy = buildClientPolicy();
+
+        return new AerospikeClient(clientPolicy, hosts);
+    }
+
+    private ClientPolicy buildClientPolicy() {
         ClientPolicy clientPolicy = new ClientPolicy();
-//        clientPolicy.user = storageConfig.get(AUTH_USERNAME);
-//        clientPolicy.password = storageConfig.get(AUTH_PASSWORD);
+        clientPolicy.user = storageConfig.has(AUTH_USERNAME) ? storageConfig.get(AUTH_USERNAME) : null;
+        clientPolicy.password = storageConfig.has(AUTH_PASSWORD) ? storageConfig.get(AUTH_PASSWORD) : null;
         clientPolicy.writePolicyDefault.sendKey = true;
         clientPolicy.readPolicyDefault.sendKey = true;
         clientPolicy.scanPolicyDefault.sendKey = true;
-
-        return new AerospikeClient(clientPolicy, hosts);
+        return clientPolicy;
     }
 
     @Override
     public AKeyColumnValueStore openDatabase(String name) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "Database name may not be null or empty");
 
-        return new AerospikeKeyColumnValueStore(namespace, /*setPrefix + */name,
+        return new AerospikeKeyColumnValueStore(namespace, graphPrefix, name,
                 client, configuration, lockOperations, scanExecutor, writeAheadLogManager);
     }
 
@@ -164,7 +175,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
             throw new PermanentBackendException(e);
         } finally {
             releaseLocks(keysLocked);
-            deleteTransaction(transactionId);
+            deleteWalTransaction(transactionId);
         }
     }
 
@@ -172,7 +183,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         lockOperations.releaseLocks(keysLocked);
     }
 
-    void deleteTransaction(Value transactionId) {
+    void deleteWalTransaction(Value transactionId) {
         writeAheadLogManager.deleteTransaction(transactionId);
     }
 
@@ -214,7 +225,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     private void mutateMany(
             Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) throws PermanentBackendException {
 
-        //first mutate not locked keys so need to split mutations
         List<CompletableFuture<?>> mutations = new ArrayList<>();
 
         mutationsByStore.forEach((storeName, storeMutations) -> {
@@ -222,7 +232,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
             for(Map.Entry<Value, Map<Value, Value>> mutationEntry : storeMutations.entrySet()){
                 Value key = mutationEntry.getKey();
                 Map<Value, Value> mutation = mutationEntry.getValue();
-                mutations.add(CompletableFuture.runAsync(() -> store.mutate(key, mutation), aerospikeExecutor));
+                mutations.add(runAsync(() -> store.mutate(key, mutation), aerospikeExecutor));
             }
         });
 
@@ -231,20 +241,18 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     @Override
     public void close() throws BackendException {
-        try {
-            writeAheadLogCompleter.shutdown();
-            scanExecutor.shutdown();
-            aerospikeExecutor.shutdown();
-            client.close();
-        } catch (AerospikeException e) {
-            throw new PermanentBackendException(e);
-        }
+        completeAll(asList(
+                runAsync(writeAheadLogCompleter::shutdown),
+                runAsync(() -> shutdownAndAwaitTermination(scanExecutor)),
+                runAsync(() -> shutdownAndAwaitTermination(aerospikeExecutor)),
+                runAsync(client::close)
+        ));
     }
 
     @Override
     public void clearStorage() throws BackendException {
         try {
-            while(!emptyStorage()){
+            while(!isEmptyStorage()){
                 client.truncate(null, namespace, null, null);
                 Thread.sleep(100);
             }
@@ -259,13 +267,13 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     @Override
     public boolean exists() throws BackendException {
         try {
-            return !emptyStorage();
+            return !isEmptyStorage();
         } catch (AerospikeException e) {
             throw new PermanentBackendException(e);
         }
     }
 
-    private boolean emptyStorage(){
+    private boolean isEmptyStorage(){
         String answer = Info.request(client.getNodes()[0], "sets/" + namespace);
         return Stream.of(answer.split(";"))
                 .allMatch(s -> s.contains("objects=0"));

@@ -30,30 +30,18 @@ public class AerospikeGraphTest extends JanusGraphTest {
         ModifiableConfiguration config = buildGraphConfiguration();
         config.set(STORAGE_BACKEND, "com.playtika.janusgraph.aerospike.AerospikeStoreManager");
         config.set(NAMESPACE, "test");
-//        config.set(SET_NAME_PREFIX, "test");
         config.set(WAL_NAMESPACE, "test");
-        config.set(WAL_SET_NAME, "wal");
+        config.set(GRAPH_PREFIX, "test");
         //!!! need to prevent small batches mutations as we use deferred locking approach !!!
         config.set(BUFFER_SIZE, AEROSPIKE_BUFFER_SIZE);
         config.set(ALLOW_SCAN, true);  //for test purposes only
         return config;
     }
 
-//    private static ModifiableConfiguration getCassandraConfiguration() {
-//        ModifiableConfiguration config = buildGraphConfiguration();
-//        config.set(KEYSPACE, "test");
-//        config.set(PAGE_SIZE,500);
-//        config.set(CONNECTION_TIMEOUT, Duration.ofSeconds(60L));
-//        config.set(STORAGE_BACKEND, "cql");
-//        config.set(STORAGE_HOSTS, new String[]{"127.0.0.1"});
-//        config.set(DROP_ON_CLEAR, false);
-//        return config;
-//    }
-
     @Ignore
     @Override
     @Test
-    //https://github.com/JanusGraph/janusgraph/issues/1498
+    //TODO waiting for https://github.com/JanusGraph/janusgraph/issues/1498
     public void testIndexUpdatesWithReindexAndRemove() {
     }
 

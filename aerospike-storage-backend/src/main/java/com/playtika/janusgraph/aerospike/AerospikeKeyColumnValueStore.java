@@ -20,7 +20,6 @@ import java.util.concurrent.Executor;
 import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.groupLocksByStoreKeyColumn;
 import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.mutationToMap;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
-import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
 import static java.util.Collections.*;
 
 public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
@@ -38,7 +37,8 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     static final String ENTRIES_BIN_NAME = "entries";
 
     private final String namespace;
-    private final String name; //used as set name
+    private final String setName;
+    private final String storeName;
     private final Configuration configuration;
     private final IAerospikeClient client;
     private final Executor scanExecutor;
@@ -46,14 +46,16 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     private final WriteAheadLogManager writeAheadLogManager;
 
     AerospikeKeyColumnValueStore(String namespace,
-                                 String name,
+                                 String graphPrefix,
+                                 String storeName,
                                  IAerospikeClient client,
                                  Configuration configuration,
                                  LockOperations lockOperations,
                                  Executor scanExecutor,
                                  WriteAheadLogManager writeAheadLogManager) {
         this.namespace = namespace;
-        this.name = name;
+        this.setName = graphPrefix + "." + storeName;
+        this.storeName = storeName;
         this.client = client;
         this.configuration = configuration;
         this.scanExecutor = scanExecutor;
@@ -67,10 +69,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     }
 
     /**
-     * Used to add new index on existing graph
-     * @param query
-     * @param txh
-     * @return
+     * Except scan operations may be used by janusgraph to add new index on existing graph
      */
     @Override // This method is only supported by stores which do not keep keys in byte-order.
     public KeyIterator getKeys(SliceQuery query, StoreTransaction txh) {
@@ -84,7 +83,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
 
         scanExecutor.execute(() -> {
             try {
-                client.scanAll(scanPolicy, namespace, name, keyIterator);
+                client.scanAll(scanPolicy, namespace, setName, keyIterator);
             } finally {
                 keyIterator.terminate();
             }
@@ -130,11 +129,11 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
         AerospikeTransaction transaction = (AerospikeTransaction)txh;
 
         Map<String, Map<Value, Map<Value, Value>>> locksByStore = groupLocksByStoreKeyColumn(transaction.getLocks());
-        if(!singleton(name).containsAll(locksByStore.keySet())){
+        if(!singleton(storeName).containsAll(locksByStore.keySet())){
             throw new IllegalArgumentException();
         }
 
-        Map<Value, Map<Value, Value>> locks = locksByStore.getOrDefault(name, emptyMap());
+        Map<Value, Map<Value, Value>> locks = locksByStore.getOrDefault(storeName, emptyMap());
 
         Value keyValue = getValue(key);
         //expect that locks contains key
@@ -144,7 +143,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
 
 
         Map<Value, Value> mutationMap = mutationToMap(new KCVMutation(additions, deletions));
-        Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = singletonMap(name, singletonMap(keyValue,
+        Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = singletonMap(storeName, singletonMap(keyValue,
                 mutationMap));
 
         Value transactionId = writeAheadLogManager.writeTransaction(locksByStore, mutationsByStore);
@@ -209,11 +208,11 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     }
 
     private Key getKey(StaticBuffer staticBuffer) {
-        return new Key(namespace, name, staticBuffer.getBytes(0, staticBuffer.length()));
+        return new Key(namespace, setName, staticBuffer.getBytes(0, staticBuffer.length()));
     }
 
-    Key getKey(Value value) {
-        return new Key(namespace, name, value);
+    private Key getKey(Value value) {
+        return new Key(namespace, setName, value);
     }
 
     static Value getValue(StaticBuffer staticBuffer) {
@@ -224,9 +223,9 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     public void acquireLock(final StaticBuffer key, final StaticBuffer column, final StaticBuffer expectedValue, final StoreTransaction txh) {
         //deferred locking approach
         //just add lock to transaction, actual lock will be acquired at commit phase
-        ((AerospikeTransaction)txh).addLock(new AerospikeLock(name, key, column, expectedValue));
+        ((AerospikeTransaction)txh).addLock(new AerospikeLock(storeName, key, column, expectedValue));
         if(logger.isTraceEnabled()){
-            logger.trace("registered lock: {}:{}:{}:{}, tx:{}", name, key, column, expectedValue, txh);
+            logger.trace("registered lock: {}:{}:{}:{}, tx:{}", storeName, key, column, expectedValue, txh);
         }
     }
 
@@ -235,11 +234,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
 
     @Override
     public String getName() {
-        return name;
-    }
-
-    LockOperations getLockOperations() {
-        return lockOperations;
+        return storeName;
     }
 
 }
