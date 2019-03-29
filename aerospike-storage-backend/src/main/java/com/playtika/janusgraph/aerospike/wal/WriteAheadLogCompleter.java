@@ -47,12 +47,14 @@ public class WriteAheadLogCompleter {
         this.writeAheadLogManager = writeAheadLogManager;
         this.aerospikeStoreManager = aerospikeStoreManager;
 
-        putLockPolicy = new WritePolicy();
-        putLockPolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
-        putLockPolicy.expiration = (int)Duration.ofMillis(periodInMs).get(SECONDS);
-        if(putLockPolicy.expiration < 1){
+        this.putLockPolicy = new WritePolicy();
+        this.putLockPolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
+        this.putLockPolicy.expiration = (int)Duration.ofMillis(periodInMs).get(SECONDS);
+        if(this.putLockPolicy.expiration < 1){
             throw new IllegalArgumentException("Wrong expiration for WAL lock: "+putLockPolicy.expiration);
         }
+
+
         //set period to by slightly longer then expiration
         this.periodInMs = Duration.ofSeconds(putLockPolicy.expiration + 1).toMillis();
         exclusiveLockKey = new Key(walNamespace, walSetName, EXCLUSIVE_LOCK_KEY);

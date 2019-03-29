@@ -23,6 +23,8 @@ import java.util.stream.Stream;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.getValue;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
+import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
+import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.completeAll;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.shutdownAndAwaitTermination;
 import static java.util.Arrays.asList;
@@ -252,10 +254,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     @Override
     public void clearStorage() throws BackendException {
         try {
-            while(!isEmptyStorage()){
-                client.truncate(null, namespace, null, null);
-                Thread.sleep(100);
-            }
+            truncateNamespace(client, namespace);
 
         } catch (AerospikeException e) {
             throw new PermanentBackendException(e);
@@ -267,16 +266,10 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     @Override
     public boolean exists() throws BackendException {
         try {
-            return !isEmptyStorage();
+            return !isEmptyNamespace(client, namespace);
         } catch (AerospikeException e) {
             throw new PermanentBackendException(e);
         }
-    }
-
-    private boolean isEmptyStorage(){
-        String answer = Info.request(client.getNodes()[0], "sets/" + namespace);
-        return Stream.of(answer.split(";"))
-                .allMatch(s -> s.contains("objects=0"));
     }
 
     @Override

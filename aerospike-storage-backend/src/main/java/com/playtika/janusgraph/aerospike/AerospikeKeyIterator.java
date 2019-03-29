@@ -38,6 +38,7 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
     public RecordIterator<Entry> getEntries() {
 
         //TODO wait for https://github.com/aerospike/aerospike-client-java/issues/132 to be fixed
+        //TODO fixed in 4.4.0. Waiting for release
 //        Iterator<Entry> entriesIt = current.record.getMap(ENTRIES_BIN_NAME).values().stream()
 //                .map(o -> {
 //                    final StaticBuffer column = null;
