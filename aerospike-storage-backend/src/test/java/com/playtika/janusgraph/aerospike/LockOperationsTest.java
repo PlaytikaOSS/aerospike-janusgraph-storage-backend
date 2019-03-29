@@ -1,5 +1,6 @@
 package com.playtika.janusgraph.aerospike;
 
+import com.aerospike.AerospikeContainer;
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Key;
 import com.aerospike.client.Value;
@@ -9,6 +10,7 @@ import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.locking.PermanentLockingException;
 import org.janusgraph.diskstorage.locking.TemporaryLockingException;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -18,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENTRIES_BIN_NAME;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager.getBytesFromUUID;
 import static java.util.Collections.singletonMap;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,15 +28,21 @@ import static org.junit.Assert.fail;
 
 public class LockOperationsTest {
 
-    public static final Key KEY = new Key("test", "test.test", "test_key");
-    public static final Key LOCK_KEY = new Key("test", "test.test.lock", "test_key");
+    @ClassRule
+    public static AerospikeContainer container = getAerospikeContainer();
+
+    public static final String NAMESPACE = container.getNamespace();
+
+    public static final Key KEY = new Key(NAMESPACE, "test.test", "test_key");
+    public static final Key LOCK_KEY = new Key(NAMESPACE, "test.test.lock", "test_key");
     public static final UUID TRANSACTION_ID = UUID.randomUUID();
     public static final Value COLUMN_NAME = Value.get("column_name");
     public static final Value COLUMN_NAME_2 = Value.get("column_name_2");
     public static final Value COLUMN_VALUE = Value.get(new byte[]{1, 2, 3});
-    private static AerospikeClient client = new AerospikeClient(null, "localhost", 3000);
 
-    private static LockOperations lockOperations = new LockOperations(client, "test", "test",
+    private AerospikeClient client = new AerospikeClient(null, container.getContainerIpAddress(), container.getPort());
+
+    private LockOperations lockOperations = new LockOperations(client, NAMESPACE, "test",
             Executors.newSingleThreadExecutor());
 
     @Before

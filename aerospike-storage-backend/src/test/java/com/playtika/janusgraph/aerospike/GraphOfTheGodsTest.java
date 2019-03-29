@@ -1,30 +1,31 @@
 package com.playtika.janusgraph.aerospike;
 
+import com.aerospike.AerospikeContainer;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
-import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.example.GraphOfTheGodsFactory;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.Iterator;
 
-import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.cleanTestNamespaceAndCloseGraphs;
-import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.getAerospikeConfiguration;
-import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.deleteAllRecords;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static org.junit.Assert.*;
 
 public class GraphOfTheGodsTest {
 
+    @Rule
+    public AerospikeContainer container = getAerospikeContainer();
+
     JanusGraph graph;
 
     @Before
-    public void buildGraph() throws InterruptedException, BackendException {
-        cleanTestNamespaceAndCloseGraphs();
-
-        graph = JanusGraphFactory.open(getAerospikeConfiguration());
+    public void buildGraph() {
+        graph = JanusGraphFactory.open(getAerospikeConfiguration(container));
 
         GraphOfTheGodsFactory.loadWithoutMixedIndex(graph, true);
     }
@@ -49,13 +50,13 @@ public class GraphOfTheGodsTest {
     }
 
     @Test
-    public void testQueryAllVertices() throws Exception {
+    public void testQueryAllVertices()  {
         assertEquals("Expected the correct number of VERTICES",
                 12, graph.traversal().V().count().tryNext().get().longValue());
     }
 
     @Test
-    public void testQueryAllEdges() throws Exception {
+    public void testQueryAllEdges()  {
         assertEquals("Expected the correct number of EDGES",
                 17, graph.traversal().E().count().tryNext().get().longValue());
     }
