@@ -16,7 +16,8 @@ public class AerospikeUtils {
 
     public static boolean isEmptyNamespace(IAerospikeClient client, String namespace){
         String answer = Info.request(client.getNodes()[0], "sets/" + namespace);
-        return Stream.of(answer.split(";"))
+        return answer.isEmpty()
+                || Stream.of(answer.split(";"))
                 .allMatch(s -> s.contains("objects=0"));
     }
 

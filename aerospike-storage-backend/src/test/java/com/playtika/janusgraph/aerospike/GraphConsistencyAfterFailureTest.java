@@ -1,5 +1,6 @@
 package com.playtika.janusgraph.aerospike;
 
+import com.aerospike.AerospikeContainer;
 import com.aerospike.client.Key;
 import com.aerospike.client.Value;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
@@ -14,7 +15,7 @@ import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.diskstorage.keycolumnvalue.*;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,21 +27,19 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.cleanTestNamespaceAndCloseGraphs;
-import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.getAerospikeConfiguration;
-import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.AEROSPIKE_BUFFER_SIZE;
-import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.deleteAllRecords;
-import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.*;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD;
 import static org.apache.tinkerpop.gremlin.structure.Direction.IN;
 import static org.apache.tinkerpop.gremlin.structure.Direction.OUT;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_BACKEND;
 
 public class GraphConsistencyAfterFailureTest {
 
     private static Logger logger = LoggerFactory.getLogger(GraphConsistencyAfterFailureTest.class);
+
+    @ClassRule
+    public static AerospikeContainer container = getAerospikeContainer();
 
     public static final String CREDENTIAL_TYPE = "credentialType";
     public static final String CREDENTIAL_VALUE = "credentialValue";
@@ -52,16 +51,10 @@ public class GraphConsistencyAfterFailureTest {
     public static final Object[] APP = {APP_IDENTITY_ID, "123:456"};
     public static final long STALE_TRANSACTION_THRESHOLD = 1000L;
 
-
-    @Before
-    public void buildGraph() throws InterruptedException {
-        deleteAllRecords("test");
-    }
-
     @Test
     public void shouldBecameConsistentAfterFailure() throws InterruptedException, BackendException {
         for(int i = 0; i < 20; i++) {
-            cleanTestNamespaceAndCloseGraphs();
+            deleteAllRecords(container, container.getNamespace());
 
             JanusGraph graph = openGraph();
 
@@ -98,11 +91,8 @@ public class GraphConsistencyAfterFailureTest {
     }
 
     protected JanusGraph openGraph() {
-        ModifiableConfiguration config = getAerospikeConfiguration();
+        ModifiableConfiguration config = getAerospikeConfiguration(container);
         config.set(STORAGE_BACKEND, FlakingAerospikeStoreManager.class.getName());
-        //!!! need to prevent small batches mutations as we use deferred locking approach !!!
-        config.set(BUFFER_SIZE, AEROSPIKE_BUFFER_SIZE);
-        config.set(ALLOW_SCAN, true);  //for test purposes only
         config.set(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD, STALE_TRANSACTION_THRESHOLD);
 
         return JanusGraphFactory.open(config);
@@ -169,7 +159,7 @@ public class GraphConsistencyAfterFailureTest {
     private static final Random random = new Random();
     private static final AtomicLong time = new AtomicLong(0);
 
-    public static class FlakingAerospikeStoreManager extends TestAerospikeStoreManager {
+    public static class FlakingAerospikeStoreManager extends AerospikeStoreManager {
 
         public FlakingAerospikeStoreManager(Configuration configuration) {
             super(configuration);

@@ -1,8 +1,11 @@
 package com.playtika.janusgraph.aerospike.wal;
 
+import com.aerospike.AerospikeContainer;
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Value;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 import java.time.Clock;
@@ -11,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager.toBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -18,15 +22,19 @@ import static org.mockito.Mockito.when;
 
 public class WriteAheadLogManagerTest {
 
-    public static final String WAL_NAMESPACE = "test";
-    public static final String WAL_SET_NAME = "wal";
-    private static AerospikeClient client = new AerospikeClient(null, "localhost", 3000);
+    @ClassRule
+    public static AerospikeContainer container = getAerospikeContainer();
+
+    private AerospikeClient client = new AerospikeClient(null, container.getContainerIpAddress(), container.getPort());
+
+    static final String WAL_NAMESPACE = container.getNamespace();
+    static final String WAL_SET_NAME = "wal";
 
     private Clock clock = mock(Clock.class);
     private WriteAheadLogManager walManager = new WriteAheadLogManager(client, WAL_NAMESPACE, WAL_SET_NAME, clock, 1000);
 
     @Before
-    public void cleanAerospike(){
+    public void setUp() throws InterruptedException {
         client.truncate(null, WAL_NAMESPACE, null, null);
     }
 

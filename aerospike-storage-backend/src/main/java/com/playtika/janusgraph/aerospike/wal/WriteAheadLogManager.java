@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
 import java.time.Clock;
 import java.util.*;
 
-import static com.aerospike.client.task.Task.IN_PROGRESS;
+import static com.aerospike.client.task.Task.COMPLETE;
 
 /**
  * Used to write transactions into WAL storage
@@ -45,15 +45,8 @@ public class WriteAheadLogManager {
         this.staleTransactionLifetimeThresholdInMs = staleTransactionLifetimeThresholdInMs;
 
         try {
-            IndexTask indexTask = client.createIndex(null, walNamespace, walSetName,
-                    secondaryIndexName, TIMESTAMP_BIN, IndexType.NUMERIC);
-            while (indexTask.queryStatus() == IN_PROGRESS) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            client.createIndex(null, walNamespace, walSetName, secondaryIndexName, TIMESTAMP_BIN, IndexType.NUMERIC)
+                    .waitTillComplete(200, 0);
         } catch (AerospikeException ae) {
             if(ae.getResultCode() == ResultCode.INDEX_ALREADY_EXISTS){
                 logger.info("Will not create WAL secondary index as it already exists");
