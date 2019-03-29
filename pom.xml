@@ -41,6 +41,7 @@
         <!--plugins -->
         <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>2.19.1</maven-surefire-plugin.version>
+        <embedded-aerospike.version>1.19</embedded-aerospike.version>
     </properties>
 
 
@@ -72,6 +73,13 @@
                 <groupId>org.janusgraph</groupId>
                 <artifactId>janusgraph-test</artifactId>
                 <version>${janusgraph.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.playtika.testcontainers</groupId>
+                <artifactId>embedded-aerospike</artifactId>
+                <version>${embedded-aerospike.version}</version>
                 <scope>test</scope>
             </dependency>
 

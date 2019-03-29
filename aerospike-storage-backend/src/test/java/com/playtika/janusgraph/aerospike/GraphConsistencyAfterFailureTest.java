@@ -14,6 +14,7 @@ import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.diskstorage.keycolumnvalue.*;
+import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,8 +26,10 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.cleanTestNamespaceAndCloseGraphs;
 import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.AEROSPIKE_BUFFER_SIZE;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.deleteAllRecords;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD;
 import static org.apache.tinkerpop.gremlin.structure.Direction.IN;
@@ -50,10 +53,15 @@ public class GraphConsistencyAfterFailureTest {
     public static final long STALE_TRANSACTION_THRESHOLD = 1000L;
 
 
+    @Before
+    public void buildGraph() throws InterruptedException {
+        deleteAllRecords("test");
+    }
+
     @Test
-    public void shouldBecameConsistentAfterFailure() throws InterruptedException {
+    public void shouldBecameConsistentAfterFailure() throws InterruptedException, BackendException {
         for(int i = 0; i < 20; i++) {
-            AerospikeTestUtils.deleteAllRecords("test");
+            cleanTestNamespaceAndCloseGraphs();
 
             JanusGraph graph = openGraph();
 
@@ -75,7 +83,7 @@ public class GraphConsistencyAfterFailureTest {
                 fails.set(false);
                 time.set(STALE_TRANSACTION_THRESHOLD + 1);
                 //wait for WriteAheadLogCompleter had fixed graph
-                Thread.sleep(STALE_TRANSACTION_THRESHOLD * 4);
+                Thread.sleep(STALE_TRANSACTION_THRESHOLD * 2);
 
                 //check graph. It should be fixed at this time
                 checkAndCleanGraph(graph);
@@ -161,7 +169,7 @@ public class GraphConsistencyAfterFailureTest {
     private static final Random random = new Random();
     private static final AtomicLong time = new AtomicLong(0);
 
-    public static class FlakingAerospikeStoreManager extends AerospikeStoreManager {
+    public static class FlakingAerospikeStoreManager extends TestAerospikeStoreManager {
 
         public FlakingAerospikeStoreManager(Configuration configuration) {
             super(configuration);

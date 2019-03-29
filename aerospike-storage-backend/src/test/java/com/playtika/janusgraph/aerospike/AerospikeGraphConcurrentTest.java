@@ -14,14 +14,22 @@
 
 package com.playtika.janusgraph.aerospike;
 
+import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.configuration.WriteConfiguration;
 import org.janusgraph.graphdb.JanusGraphConcurrentTest;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.cleanTestNamespaceAndCloseGraphs;
 import static com.playtika.janusgraph.aerospike.AerospikeGraphTest.getAerospikeConfiguration;
 
 public class AerospikeGraphConcurrentTest extends JanusGraphConcurrentTest {
+
+    @BeforeClass
+    public static void before() throws InterruptedException, BackendException {
+        cleanTestNamespaceAndCloseGraphs();
+    }
 
     @Override
     public WriteConfiguration getConfiguration() {
