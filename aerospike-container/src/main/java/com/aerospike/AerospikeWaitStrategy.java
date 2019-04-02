@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.ContainerLaunchException;
 import org.testcontainers.containers.wait.strategy.AbstractWaitStrategy;
 
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import static org.rnorth.ducttape.unreliables.Unreliables.retryUntilSuccess;
