@@ -4,7 +4,7 @@
 
     <groupId>com.playtika.janusgraph</groupId>
     <artifactId>aerospike</artifactId>
-    <version>0.0.4-SNAPSHOT</version>
+    <version>0.0.4</version>
     <packaging>pom</packaging>
 
     <modules>
