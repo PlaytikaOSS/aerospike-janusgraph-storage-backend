@@ -29,9 +29,12 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     private static final MapPolicy mapPolicy = new MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE);
 
     private static final WritePolicy mutatePolicy = new WritePolicy();
+    private static final ScanPolicy scanPolicy = new ScanPolicy();
     static {
         mutatePolicy.respondAllOps = true;
         mutatePolicy.sendKey = true;
+
+        scanPolicy.includeBinData = true;
     }
 
     static final String ENTRIES_BIN_NAME = "entries";
@@ -76,10 +79,8 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
         if(!configuration.get(ALLOW_SCAN)){
             throw new UnsupportedOperationException();
         }
-        ScanPolicy scanPolicy = new ScanPolicy();
-        scanPolicy.includeBinData = false;
 
-        AerospikeKeyIterator keyIterator = new AerospikeKeyIterator(client);
+        AerospikeKeyIterator keyIterator = new AerospikeKeyIterator();
 
         scanExecutor.execute(() -> {
             try {
