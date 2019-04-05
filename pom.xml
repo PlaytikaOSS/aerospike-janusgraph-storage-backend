@@ -46,14 +46,14 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
+        <aerospike-client.version>4.4.0</aerospike-client.version>
+        <janusgraph.version>0.3.1</janusgraph.version>
+
         <junit.version>4.12</junit.version>
         <assertj.version>3.9.0</assertj.version>
 
         <maven-gpg-plugin.version>1.5</maven-gpg-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
-
-        <aerospike-client.version>4.3.1</aerospike-client.version>
-        <janusgraph.version>0.3.1</janusgraph.version>
 
         <!-- Sonar -->
         <surefire.plugin.version>2.19.1</surefire.plugin.version>

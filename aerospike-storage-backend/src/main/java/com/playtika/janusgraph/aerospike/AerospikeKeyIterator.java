@@ -1,8 +1,9 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.client.*;
-import com.aerospike.client.cdt.MapOperation;
-import com.aerospike.client.cdt.MapReturnType;
+import com.aerospike.client.AerospikeException;
+import com.aerospike.client.Key;
+import com.aerospike.client.Record;
+import com.aerospike.client.ScanCallback;
 import org.janusgraph.diskstorage.Entry;
 import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.keycolumnvalue.KeyIterator;
@@ -10,6 +11,7 @@ import org.janusgraph.diskstorage.util.RecordIterator;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.janusgraph.diskstorage.util.StaticArrayEntry;
 
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -23,34 +25,18 @@ import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENT
  */
 public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
 
-    private final IAerospikeClient aerospikeClient;
     private BlockingQueue<KeyRecord> queue = new LinkedBlockingQueue<>(100);
     private KeyRecord next;
     private KeyRecord current;
 
     private static final KeyRecord TERMINATE_VALUE = new KeyRecord(null, null);
 
-    AerospikeKeyIterator(IAerospikeClient aerospikeClient) {
-        this.aerospikeClient = aerospikeClient;
-    }
-
     @Override
     public RecordIterator<Entry> getEntries() {
 
-        //TODO wait for https://github.com/aerospike/aerospike-client-java/issues/132 to be fixed
-        //TODO fixed in 4.4.0. Waiting for release
-//        Iterator<Entry> entriesIt = current.record.getMap(ENTRIES_BIN_NAME).values().stream()
-//                .map(o -> {
-//                    final StaticBuffer column = null;
-//                    final StaticBuffer value = null;
-//                    return StaticArrayEntry.of(column, value);
-//                }).iterator();
-
-        Record mapRecord = aerospikeClient.operate(null, current.key,
-                MapOperation.getByIndexRange(ENTRIES_BIN_NAME, 0, MapReturnType.KEY_VALUE));
-        Iterator<Entry> entriesIt = mapRecord.getList(ENTRIES_BIN_NAME).stream()
+        final Iterator<Entry> entriesIt = current.record.getMap(ENTRIES_BIN_NAME).entrySet().stream()
                 .map(o -> {
-                    Map.Entry<byte[], byte[]> entry = (Map.Entry<byte[], byte[]>)o;
+                    Map.Entry<ByteBuffer, byte[]> entry = (Map.Entry<ByteBuffer, byte[]>)o;
                     final StaticBuffer column = StaticArrayBuffer.of(entry.getKey());
                     final StaticBuffer value = StaticArrayBuffer.of(entry.getValue());
                     return StaticArrayEntry.of(column, value);
