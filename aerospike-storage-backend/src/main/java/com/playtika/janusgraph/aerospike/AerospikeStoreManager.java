@@ -36,7 +36,7 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 public class AerospikeStoreManager extends AbstractStoreManager implements KeyColumnValueStoreManager {
 
     private static final int DEFAULT_PORT = 3000;
-    static final int AEROSPIKE_BUFFER_SIZE = Integer.MAX_VALUE / 2;
+    public static final int AEROSPIKE_BUFFER_SIZE = Integer.MAX_VALUE / 2;
 
     private final StoreFeatures features;
 

@@ -10,6 +10,7 @@
     <modules>
         <module>aerospike-storage-backend</module>
         <module>aerospike-container</module>
+        <module>aerospike-benchmark</module>
     </modules>
 
     <name>aerospike-janusgraph-storage-backend</name>
@@ -49,8 +50,10 @@
         <aerospike-client.version>4.4.0</aerospike-client.version>
         <janusgraph.version>0.3.1</janusgraph.version>
 
+        <!--Test-->
         <junit.version>4.12</junit.version>
         <assertj.version>3.9.0</assertj.version>
+        <testcontainers.version>1.11.1</testcontainers.version>
 
         <maven-gpg-plugin.version>1.5</maven-gpg-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
@@ -189,10 +192,21 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
                 <version>${slf4j-api.version}</version>
-                <scope>provided</scope>
             </dependency>
 
             <!--Test-->
+
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers</artifactId>
+                <version>${testcontainers.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>cassandra</artifactId>
+                <version>${testcontainers.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.janusgraph</groupId>
@@ -202,10 +216,21 @@
             </dependency>
 
             <dependency>
+                <groupId>org.janusgraph</groupId>
+                <artifactId>janusgraph-cql</artifactId>
+                <version>${janusgraph.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>com.playtika.janusgraph</groupId>
                 <artifactId>aerospike-container</artifactId>
                 <version>${project.version}</version>
-                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.playtika.janusgraph</groupId>
+                <artifactId>aerospike-storage-backend</artifactId>
+                <version>${project.version}</version>
             </dependency>
 
             <dependency>

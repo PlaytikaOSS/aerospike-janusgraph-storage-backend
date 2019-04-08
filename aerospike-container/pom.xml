@@ -11,20 +11,14 @@
 
     <artifactId>aerospike-container</artifactId>
 
-    <properties>
-        <testcontainers.version>1.8.3</testcontainers.version>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>com.aerospike</groupId>
             <artifactId>aerospike-client</artifactId>
-            <version>${aerospike-client.version}</version>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers</artifactId>
-            <version>${testcontainers.version}</version>
         </dependency>
 
         <dependency>
