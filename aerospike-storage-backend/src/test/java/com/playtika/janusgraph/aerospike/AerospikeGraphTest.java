@@ -26,7 +26,7 @@ public class AerospikeGraphTest extends JanusGraphTest {
     @Ignore
     @Override
     @Test
-    //TODO waiting for https://github.com/JanusGraph/janusgraph/issues/1498
+    //TODO waiting for https://github.com/JanusGraph/janusgraph/issues/1522
     public void testIndexUpdatesWithReindexAndRemove() {
     }
 

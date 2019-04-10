@@ -80,7 +80,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
             throw new UnsupportedOperationException();
         }
 
-        AerospikeKeyIterator keyIterator = new AerospikeKeyIterator();
+        AerospikeKeyIterator keyIterator = new AerospikeKeyIterator(query);
 
         scanExecutor.execute(() -> {
             try {
