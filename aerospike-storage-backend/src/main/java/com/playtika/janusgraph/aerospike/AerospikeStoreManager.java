@@ -59,8 +59,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     public AerospikeStoreManager(Configuration configuration) {
         super(configuration);
 
-        Preconditions.checkArgument(configuration.get(BUFFER_SIZE) == AEROSPIKE_BUFFER_SIZE,
-                "Set unlimited buffer size as we use deferred locking approach");
+//        Preconditions.checkArgument(configuration.get(BUFFER_SIZE) == AEROSPIKE_BUFFER_SIZE,
+//                "Set unlimited buffer size as we use deferred locking approach");
 
         client = buildAerospikeClient(configuration);
 
@@ -101,7 +101,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 .transactional(false)
                 .distributed(true)
                 .multiQuery(true)
-                .batchMutation(true)
+                .batchMutation(false)
                 .unorderedScan(true)
                 .orderedScan(false)
                 .keyOrdered(false)

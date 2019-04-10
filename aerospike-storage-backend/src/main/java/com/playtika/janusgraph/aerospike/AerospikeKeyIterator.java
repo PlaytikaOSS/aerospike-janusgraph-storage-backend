@@ -7,16 +7,20 @@ import com.aerospike.client.ScanCallback;
 import org.janusgraph.diskstorage.Entry;
 import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.keycolumnvalue.KeyIterator;
+import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
 import org.janusgraph.diskstorage.util.RecordIterator;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.janusgraph.diskstorage.util.StaticArrayEntry;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractCollection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENTRIES_BIN_NAME;
 
@@ -25,11 +29,17 @@ import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENT
  */
 public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
 
-    private BlockingQueue<KeyRecord> queue = new LinkedBlockingQueue<>(100);
+    private final SliceQuery query;
+    private final BlockingQueue<KeyRecord> queue = new LinkedBlockingQueue<>(100);
     private KeyRecord next;
     private KeyRecord current;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private static final KeyRecord TERMINATE_VALUE = new KeyRecord(null, null);
+
+    public AerospikeKeyIterator(SliceQuery query) {
+        this.query = query;
+    }
 
     @Override
     public RecordIterator<Entry> getEntries() {
@@ -40,7 +50,10 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
                     final StaticBuffer column = StaticArrayBuffer.of(entry.getKey());
                     final StaticBuffer value = StaticArrayBuffer.of(entry.getValue());
                     return StaticArrayEntry.of(column, value);
-                }).iterator();
+                })
+                .filter(entry -> query.contains(entry.getColumn()))
+                .limit(query.getLimit())
+                .iterator();
 
         return new RecordIterator<Entry>() {
             @Override
@@ -60,7 +73,14 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        closed.set(true);
+        try {
+            queue.put(TERMINATE_VALUE);
+        } catch (InterruptedException e) {
+            throw new RuntimeException();
+        }
+    }
 
     @Override
     public boolean hasNext() {
@@ -84,7 +104,7 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
             throw new NoSuchElementException();
         }
         try {
-            return new StaticArrayBuffer((byte[]) next.key.userKey.getObject());
+            return keyToBuffer(next.key);
         } finally {
             current = next;
             next = null;
@@ -94,10 +114,19 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
     @Override
     public void scanCallback(Key key, Record record) throws AerospikeException {
         try {
+            if(closed.get()){
+                throw new AerospikeException("AerospikeKeyIterator get closed, terminate scan");
+            }
+
             queue.put(new KeyRecord(key, record));
+
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static StaticArrayBuffer keyToBuffer(Key key){
+        return new StaticArrayBuffer((byte[]) key.userKey.getObject());
     }
 
     private static class KeyRecord {
