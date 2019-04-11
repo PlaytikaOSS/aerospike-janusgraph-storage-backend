@@ -12,6 +12,7 @@ import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
 
 
 @Ignore
+//TODO https://github.com/JanusGraph/janusgraph/issues/1527
 //TODO wait for https://github.com/JanusGraph/janusgraph/issues/1524
 public class AerospikeOLAPTest extends OLAPTest {
 
