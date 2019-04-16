@@ -17,15 +17,18 @@ public class Graph {
     public static final String APP_IDENTITY_ID = "appIdentityId";
 
 
-    static void buildGraph(JanusGraph graph, UUID id) {
-        JanusGraphTransaction tx = graph.newTransaction();
-        JanusGraphVertex prentEvent = tx.addVertex();
-        tx.addVertex(CREDENTIAL_TYPE, "fb_"+id, CREDENTIAL_VALUE, "qd3qeqda3123dwq_"+id)
-                .addEdge(PLATFORM_IDENTITY_PARENT_EVENT, prentEvent);
-        tx.addVertex(CREDENTIAL_TYPE, "one_"+id, CREDENTIAL_VALUE, "dwdw@cwd.com_"+id)
-                .addEdge(PLATFORM_IDENTITY_PARENT_EVENT, prentEvent);
-        tx.addVertex(APP_IDENTITY_ID, "123:456_"+id).addEdge(APP_IDENTITY_PARENT_EVENT, prentEvent);
-        tx.commit();
+    static void buildRandomGraph(JanusGraph graph) {
+        for(int i = 0; i < 1000; i++) {
+            UUID id = UUID.randomUUID();
+            JanusGraphTransaction tx = graph.newTransaction();
+            JanusGraphVertex prentEvent = tx.addVertex();
+            tx.addVertex(CREDENTIAL_TYPE, "fb_" + id, CREDENTIAL_VALUE, "qd3qeqda3123dwq_" + id)
+                    .addEdge(PLATFORM_IDENTITY_PARENT_EVENT, prentEvent);
+            tx.addVertex(CREDENTIAL_TYPE, "one_" + id, CREDENTIAL_VALUE, "dwdw@cwd.com_" + id)
+                    .addEdge(PLATFORM_IDENTITY_PARENT_EVENT, prentEvent);
+            tx.addVertex(APP_IDENTITY_ID, "123:456_" + id).addEdge(APP_IDENTITY_PARENT_EVENT, prentEvent);
+            tx.commit();
+        }
     }
 
     static void defineSchema(JanusGraph graph) {
