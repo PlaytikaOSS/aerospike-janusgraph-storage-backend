@@ -15,11 +15,10 @@ import java.util.concurrent.TimeUnit;
 
 import static com.playtika.janusgraph.aerospike.benchmark.Configurations.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.benchmark.Configurations.getCQLConfiguration;
-import static com.playtika.janusgraph.aerospike.benchmark.Graph.buildGraph;
-import static com.playtika.janusgraph.aerospike.benchmark.Graph.defineSchema;
+import static com.playtika.janusgraph.aerospike.benchmark.Graph.*;
 
-@Measurement(iterations = 20, time = 1)
-@Warmup(iterations = 10, time = 1)
+@Measurement(iterations = 10, time = 1)
+@Warmup(iterations = 5, time = 1)
 @Fork(3)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
@@ -55,13 +54,13 @@ public class JanusgraphBenchmarks {
 
     @Benchmark
     public JanusGraph cassandra() {
-        buildGraph(cassandraGraph, UUID.randomUUID());
+        buildRandomGraph(cassandraGraph);
         return cassandraGraph;
     }
 
     @Benchmark
     public JanusGraph aerospike() {
-        buildGraph(aerospikeGraph, UUID.randomUUID());
+        buildRandomGraph(aerospikeGraph);
         return aerospikeGraph;
     }
 
