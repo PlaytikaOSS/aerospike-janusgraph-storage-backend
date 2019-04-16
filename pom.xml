@@ -189,6 +189,12 @@
             </dependency>
 
             <dependency>
+                <groupId>com.aerospike</groupId>
+                <artifactId>aerospike-reactor-client</artifactId>
+                <version>${aerospike-client.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
                 <version>${slf4j-api.version}</version>
