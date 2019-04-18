@@ -141,7 +141,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "Database name may not be null or empty");
 
         return new AerospikeKeyColumnValueStore(namespace, graphPrefix, name,
-                client, configuration, lockOperations, scanExecutor, writeAheadLogManager);
+                client, configuration, lockOperations, aerospikeExecutor, scanExecutor, writeAheadLogManager);
     }
 
     @Override
