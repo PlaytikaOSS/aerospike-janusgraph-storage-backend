@@ -1,10 +1,14 @@
 package com.playtika.janusgraph.aerospike;
 
 import com.aerospike.AerospikeContainer;
+import com.codahale.metrics.MetricFilter;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.example.GraphOfTheGodsFactory;
+import org.janusgraph.util.stats.MetricManager;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -29,14 +33,20 @@ public class JmxMetricsTest {
     @Rule
     public AerospikeContainer aerospike = getAerospikeContainer();
 
+    @Before
+    public void before() throws MalformedObjectNameException, InstanceNotFoundException, MBeanRegistrationException {
+        resetMetrics();
+    }
+
+    @After
+    public void after() throws MalformedObjectNameException, InstanceNotFoundException, MBeanRegistrationException {
+        resetMetrics();
+    }
+
     @Test
     public void shouldReturnValidJmxMetrics() throws MalformedObjectNameException, IntrospectionException, InstanceNotFoundException, ReflectionException, AttributeNotFoundException, MBeanException {
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
         ObjectName janusgraphObjectName = new ObjectName(JANUSGRAPH_JMX_DOMAIN + ":*");
-
-        for (ObjectName objectName : server.queryNames(janusgraphObjectName, null)) {
-            server.unregisterMBean(objectName);
-        }
 
         ModifiableConfiguration aerospikeConfiguration = getAerospikeConfiguration(aerospike);
         aerospikeConfiguration.set(BASIC_METRICS, true);
@@ -71,6 +81,17 @@ public class JmxMetricsTest {
 
             assertThat(metrics).containsAll(ALL_METRICS.keySet());
         }
+    }
+
+    private void resetMetrics() throws InstanceNotFoundException, MBeanRegistrationException, MalformedObjectNameException {
+        MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+        ObjectName janusgraphObjectName = new ObjectName(JANUSGRAPH_JMX_DOMAIN + ":*");
+
+        for (ObjectName objectName : server.queryNames(janusgraphObjectName, null)) {
+            server.unregisterMBean(objectName);
+        }
+
+        MetricManager.INSTANCE.getRegistry().removeMatching(MetricFilter.ALL);
     }
 
     private static final Map<String, Predicate<Object>> ALL_METRICS = new HashMap<String, Predicate<Object>>(){{
