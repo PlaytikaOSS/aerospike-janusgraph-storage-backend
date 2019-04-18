@@ -109,7 +109,6 @@ public class JmxMetricsTest {
         timeMetrics("org.janusgraph.storeManager.mutate", this);
 
         timeMetrics("org.janusgraph.stores.getKeys", this);
-        put("org.janusgraph.stores.getKeys.time:StdDev", equalTo(0.));
 
         timeMetrics("org.janusgraph.stores.getKeys.iterator.hasNext", this);
 
@@ -166,7 +165,7 @@ public class JmxMetricsTest {
         metrics.put(group+".time:Max", greaterThen(0.));
         metrics.put(group+".time:Min", greaterThen(0.));
         metrics.put(group+".time:Mean", greaterThen(0.));
-        metrics.put(group+".time:StdDev", greaterThen(0.));
+        metrics.put(group+".time:StdDev", o -> true);
         metrics.put(group+".time:50thPercentile", greaterThen(0.));
         metrics.put(group+".time:75thPercentile", greaterThen(0.));
         metrics.put(group+".time:95thPercentile", greaterThen(0.));
