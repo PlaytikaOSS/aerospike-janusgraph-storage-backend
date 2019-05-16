@@ -1,10 +1,17 @@
 package com.playtika.janusgraph.aerospike.wal;
 
-import com.aerospike.client.*;
+import com.aerospike.client.AerospikeException;
+import com.aerospike.client.Bin;
+import com.aerospike.client.IAerospikeClient;
+import com.aerospike.client.Key;
+import com.aerospike.client.ResultCode;
+import com.aerospike.client.Value;
 import com.aerospike.client.policy.RecordExistsAction;
 import com.aerospike.client.policy.WritePolicy;
 import com.playtika.janusgraph.aerospike.AerospikeStoreManager;
+import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
 import org.janusgraph.diskstorage.BackendException;
+import org.janusgraph.diskstorage.locking.PermanentLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.JANUS_AEROSPIKE_THREAD_GROUP_NAME;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.shutdownAndAwaitTermination;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -37,7 +45,9 @@ public class WriteAheadLogCompleter {
     private final WritePolicy putLockPolicy;
     private final Key exclusiveLockKey;
 
-    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
+            new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "wal")
+    );
 
     public WriteAheadLogCompleter(IAerospikeClient aerospikeClient, String walNamespace, String walSetName,
                            WriteAheadLogManager writeAheadLogManager, long periodInMs,
@@ -83,13 +93,13 @@ public class WriteAheadLogCompleter {
                                 transaction.transactionId, transaction.locks, transaction.mutations, true);
                         logger.info("Successfully complete transaction id={}", transaction.transactionId);
                     }
-
                     //this is expected behaviour that may have place in case of transaction was interrupted:
                     // - on 'release locks' stage then transaction will fail and just need to release hanged locks
                     // - on 'delete wal transaction' stage and just need to remove transaction
-                    catch (BackendException be) {
-                        logger.info("Failed to complete transaction id={}",
-                                transaction.transactionId, be);
+                    catch (PermanentLockingException be) {
+                        logger.info("Failed to complete transaction id={} as it's already completed", transaction.transactionId, be);
+                        aerospikeStoreManager.releaseLocksAndDeleteWalTransaction(transaction.locks, transaction.transactionId);
+                        logger.info("released locks for transaction id={}", transaction.transactionId, be);
                     }
                     //even in case of error need to move to the next one
                     catch (Exception e){
@@ -98,7 +108,12 @@ public class WriteAheadLogCompleter {
                     }
                 }
             }
-        } catch (Throwable t) {
+        }
+        catch (BackendException t) {
+            logger.error("Error while running completeHangedTransactions()", t);
+            throw new RuntimeException(t);
+        }
+        catch (Throwable t) {
             logger.error("Error while running completeHangedTransactions()", t);
             throw t;
         }

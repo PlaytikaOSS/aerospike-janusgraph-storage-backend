@@ -1,10 +1,6 @@
 package com.playtika.janusgraph.aerospike.util;
 
-import org.janusgraph.diskstorage.BackendException;
-import org.janusgraph.diskstorage.EntryList;
 import org.janusgraph.diskstorage.PermanentBackendException;
-import org.janusgraph.diskstorage.StaticBuffer;
-import org.janusgraph.diskstorage.keycolumnvalue.KeySliceQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +8,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static java.util.concurrent.CompletableFuture.supplyAsync;

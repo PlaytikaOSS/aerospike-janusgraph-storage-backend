@@ -1,6 +1,13 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.client.*;
+import com.aerospike.client.AerospikeException;
+import com.aerospike.client.Bin;
+import com.aerospike.client.IAerospikeClient;
+import com.aerospike.client.Key;
+import com.aerospike.client.Operation;
+import com.aerospike.client.Record;
+import com.aerospike.client.ResultCode;
+import com.aerospike.client.Value;
 import com.aerospike.client.cdt.MapOperation;
 import com.aerospike.client.cdt.MapReturnType;
 import com.aerospike.client.policy.RecordExistsAction;
@@ -12,7 +19,11 @@ import org.janusgraph.diskstorage.locking.TemporaryLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -142,8 +153,24 @@ class LockOperations {
         }
     }
 
-    void releaseLocks(Collection<Key> keys) {
-        keys.forEach(key -> client.delete(null, key));
+    void releaseLocks(Collection<Key> keys) throws BackendException {
+        List<CompletableFuture<?>> futures = new ArrayList<>(keys.size());
+        for(Key lockKey : keys){
+            futures.add(runAsync(() -> client.delete(null, lockKey)));
+        }
+        completeAll(futures);
+    }
+
+    void releaseLocks(Map<String, Map<Value, Map<Value, Value>>> locksByStore) throws BackendException {
+        List<CompletableFuture<?>> futures = new ArrayList<>();
+        for (Map.Entry<String, Map<Value, Map<Value, Value>>> locksForStore : locksByStore.entrySet()) {
+            String storeName = locksForStore.getKey();
+            for (Value key : locksForStore.getValue().keySet()) {
+                Key lockKey = getLockKey(storeName, key);
+                futures.add(runAsync(() -> client.delete(null, lockKey)));
+            }
+        }
+        completeAll(futures);
     }
 
     private void checkExpectedValues(final Map<String, Map<Value, Map<Value, Value>>> locksByStore,

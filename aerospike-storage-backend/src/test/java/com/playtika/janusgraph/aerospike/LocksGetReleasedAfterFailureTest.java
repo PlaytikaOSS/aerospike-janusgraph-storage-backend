@@ -15,16 +15,8 @@ import org.janusgraph.core.schema.ConsistencyModifier;
 import org.janusgraph.core.schema.JanusGraphIndex;
 import org.janusgraph.core.schema.JanusGraphManagement;
 import org.janusgraph.diskstorage.BackendException;
-import org.janusgraph.diskstorage.Entry;
-import org.janusgraph.diskstorage.EntryList;
-import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
-import org.janusgraph.diskstorage.keycolumnvalue.KeyIterator;
-import org.janusgraph.diskstorage.keycolumnvalue.KeyRangeQuery;
-import org.janusgraph.diskstorage.keycolumnvalue.KeySliceQuery;
-import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
-import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -34,12 +26,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.*;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD;
@@ -48,10 +39,10 @@ import static org.apache.tinkerpop.gremlin.structure.Direction.OUT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_BACKEND;
 
-//Checks that graph get recovered after failed transaction and remains consistent
-public class GraphConsistencyAfterFailureTest {
+//Checks corner case when transaction failed on releasing lock phase. WriteAheadLogCompleter should release locks
+public class LocksGetReleasedAfterFailureTest {
 
-    private static Logger logger = LoggerFactory.getLogger(GraphConsistencyAfterFailureTest.class);
+    private static Logger logger = LoggerFactory.getLogger(LocksGetReleasedAfterFailureTest.class);
 
     @ClassRule
     public static AerospikeContainer container = getAerospikeContainer();
@@ -67,7 +58,7 @@ public class GraphConsistencyAfterFailureTest {
     public static final long STALE_TRANSACTION_THRESHOLD = 1000L;
 
     @Test
-    public void shouldBecameConsistentAfterFailure() throws InterruptedException, BackendException {
+    public void shouldBecameConsistentAfterLocksNotReleased() throws InterruptedException, BackendException {
         for(int i = 0; i < 20; i++) {
             deleteAllRecords(container, container.getNamespace());
 
@@ -187,14 +178,18 @@ public class GraphConsistencyAfterFailureTest {
 
         @Override
         public AKeyColumnValueStore openDatabase(String name) {
-            AKeyColumnValueStore client = super.openDatabase(name);
-
-            return new FlakingKCVStore(client);
+            return super.openDatabase(name);
         }
 
         @Override
         void releaseLocks(Set<Key> keysLocked) throws BackendException {
-            if(!fails.get()){
+            if(fails.get()){
+                super.releaseLocks(keysLocked.stream()
+                        .limit(random.nextInt(keysLocked.size()))
+                        .collect(Collectors.toSet()));
+                logger.error("Failed flaking");
+                throw new RuntimeException();
+            } else {
                 super.releaseLocks(keysLocked);
             }
         }
@@ -204,65 +199,6 @@ public class GraphConsistencyAfterFailureTest {
             if(!fails.get()){
                 super.deleteWalTransaction(transactionId);
             }
-        }
-    }
-
-    private static class FlakingKCVStore implements AKeyColumnValueStore {
-
-        private final AKeyColumnValueStore keyColumnValueStore;
-
-        private FlakingKCVStore(AKeyColumnValueStore keyColumnValueStore) {
-            this.keyColumnValueStore = keyColumnValueStore;
-        }
-
-        @Override
-        public void mutate(Value key, Map<Value, Value> mutation){
-            if(fails.get() && random.nextBoolean()){
-                logger.error("Failed flaking");
-                throw new RuntimeException();
-            }
-            keyColumnValueStore.mutate(key, mutation);
-        }
-
-        @Override
-        public void mutate(StaticBuffer key, List<Entry> additions, List<StaticBuffer> deletions, StoreTransaction txh) throws BackendException {
-            keyColumnValueStore.mutate(key, additions, deletions, txh);
-        }
-
-
-        @Override
-        public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) throws BackendException {
-            return keyColumnValueStore.getSlice(query, txh);
-        }
-
-        @Override
-        public Map<StaticBuffer, EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
-            return keyColumnValueStore.getSlice(keys, query, txh);
-        }
-
-        @Override
-        public void acquireLock(StaticBuffer key, StaticBuffer column, StaticBuffer expectedValue, StoreTransaction txh) throws BackendException {
-            keyColumnValueStore.acquireLock(key, column, expectedValue, txh);
-        }
-
-        @Override
-        public KeyIterator getKeys(KeyRangeQuery query, StoreTransaction txh) throws BackendException {
-            return keyColumnValueStore.getKeys(query, txh);
-        }
-
-        @Override
-        public KeyIterator getKeys(SliceQuery query, StoreTransaction txh) throws BackendException {
-            return keyColumnValueStore.getKeys(query, txh);
-        }
-
-        @Override
-        public String getName() {
-            return keyColumnValueStore.getName();
-        }
-
-        @Override
-        public void close() throws BackendException {
-            keyColumnValueStore.close();
         }
     }
 
