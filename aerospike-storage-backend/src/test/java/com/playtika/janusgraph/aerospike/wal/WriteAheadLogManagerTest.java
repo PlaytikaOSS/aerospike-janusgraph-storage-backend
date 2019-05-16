@@ -4,7 +4,6 @@ import com.aerospike.AerospikeContainer;
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Value;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 

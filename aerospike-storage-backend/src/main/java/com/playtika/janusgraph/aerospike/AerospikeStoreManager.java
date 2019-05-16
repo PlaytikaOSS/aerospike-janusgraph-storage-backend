@@ -1,19 +1,40 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.client.*;
+import com.aerospike.client.AerospikeClient;
+import com.aerospike.client.AerospikeException;
+import com.aerospike.client.Host;
+import com.aerospike.client.IAerospikeClient;
+import com.aerospike.client.Key;
+import com.aerospike.client.Value;
 import com.aerospike.client.policy.ClientPolicy;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
 import com.playtika.janusgraph.aerospike.wal.WriteAheadLogCompleter;
 import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
-import org.janusgraph.diskstorage.*;
+import org.janusgraph.diskstorage.BackendException;
+import org.janusgraph.diskstorage.BaseTransactionConfig;
+import org.janusgraph.diskstorage.Entry;
+import org.janusgraph.diskstorage.PermanentBackendException;
+import org.janusgraph.diskstorage.StaticBuffer;
+import org.janusgraph.diskstorage.StoreMetaData;
 import org.janusgraph.diskstorage.common.AbstractStoreManager;
 import org.janusgraph.diskstorage.configuration.Configuration;
-import org.janusgraph.diskstorage.keycolumnvalue.*;
+import org.janusgraph.diskstorage.keycolumnvalue.KCVMutation;
+import org.janusgraph.diskstorage.keycolumnvalue.KeyColumnValueStore;
+import org.janusgraph.diskstorage.keycolumnvalue.KeyColumnValueStoreManager;
+import org.janusgraph.diskstorage.keycolumnvalue.KeyRange;
+import org.janusgraph.diskstorage.keycolumnvalue.StandardStoreFeatures;
+import org.janusgraph.diskstorage.keycolumnvalue.StoreFeatures;
+import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.janusgraph.graphdb.configuration.PreInitializeConfigOptions;
 
 import java.time.Clock;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -37,6 +58,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     private static final int DEFAULT_PORT = 3000;
     public static final int AEROSPIKE_BUFFER_SIZE = Integer.MAX_VALUE / 2;
+    public static final String JANUS_AEROSPIKE_THREAD_GROUP_NAME = "janus-aerospike";
 
     private final StoreFeatures features;
 
@@ -80,10 +102,12 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         writeAheadLogCompleter.start();
 
         scanExecutor = new ThreadPoolExecutor(0, configuration.get(SCAN_PARALLELISM),
-                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
+                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
+                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "scan"));
 
         aerospikeExecutor = new ThreadPoolExecutor(4, configuration.get(AEROSPIKE_PARALLELISM),
-                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
+                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
+                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "main"));
 
         lockOperations = new LockOperations(client, namespace, graphPrefix, aerospikeExecutor);
     }
@@ -176,12 +200,21 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         } catch (AerospikeException e) {
             throw new PermanentBackendException(e);
         } finally {
-            releaseLocks(keysLocked);
-            deleteWalTransaction(transactionId);
+            releaseLocksAndDeleteWalTransaction(keysLocked, transactionId);
         }
     }
 
-    void releaseLocks(Set<Key> keysLocked) {
+    public void releaseLocksAndDeleteWalTransaction(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Value transactionId) throws BackendException {
+        lockOperations.releaseLocks(locksByStore);
+        deleteWalTransaction(transactionId);
+    }
+
+    private void releaseLocksAndDeleteWalTransaction(Set<Key> keysLocked, Value transactionId) throws BackendException {
+        releaseLocks(keysLocked);
+        deleteWalTransaction(transactionId);
+    }
+
+    void releaseLocks(Set<Key> keysLocked) throws BackendException {
         lockOperations.releaseLocks(keysLocked);
     }
 
