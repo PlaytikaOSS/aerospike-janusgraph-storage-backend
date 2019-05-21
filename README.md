@@ -38,7 +38,7 @@ Janusgraph keeps vertex and all adjacent edges in one record.
 | Benchmark | Mode  |  Cnt  | Score  | Error  | Units |
 |:---       |   :-: |   :-: |   :-:  |   :-:  |  :-:  |
 |aerospike | thrpt |  30 | 0.106 | ± 0.004 | ops/s |
-|cassandra | thrpt |  30 | 0.009 | ± 0.001 | ops/s |
+|cassandra | thrpt |  30 | 0.008 | ± 0.001 | ops/s |
 
 This benchmark was run using standard 'cassandra:3.11' docker image and custom aerospike image that doesn't keep any data in memory.
 https://github.com/kptfh/aerospike-server.docker
