@@ -275,13 +275,11 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     }
 
     @Override
-    public void close() throws BackendException {
-        completeAll(asList(
-                runAsync(writeAheadLogCompleter::shutdown),
-                runAsync(() -> shutdownAndAwaitTermination(scanExecutor)),
-                runAsync(() -> shutdownAndAwaitTermination(aerospikeExecutor)),
-                runAsync(client::close)
-        ));
+    public void close() {
+        writeAheadLogCompleter.shutdown();
+        shutdownAndAwaitTermination(scanExecutor);
+        shutdownAndAwaitTermination(aerospikeExecutor);
+        client.close();
     }
 
     @Override

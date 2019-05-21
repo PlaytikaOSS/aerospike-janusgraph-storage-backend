@@ -19,6 +19,9 @@ import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 public class AsyncUtil {
 
+    public static final int INITIAL_WAIT_TIMEOUT_IN_SECONDS = 1;
+    public static final int WAIT_TIMEOUT_IN_SECONDS = 5;
+
     private static Logger logger = LoggerFactory.getLogger(AsyncUtil.class);
 
     public static void completeAll(List<CompletableFuture<?>> futures) throws PermanentBackendException {
@@ -53,10 +56,10 @@ public class AsyncUtil {
         pool.shutdown(); // Disable new tasks from being submitted
         try {
             // Wait a while for existing tasks to terminate
-            if (!pool.awaitTermination(60, TimeUnit.SECONDS)) {
+            if (!pool.awaitTermination(INITIAL_WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS)) {
                 pool.shutdownNow(); // Cancel currently executing tasks
                 // Wait a while for tasks to respond to being cancelled
-                if (!pool.awaitTermination(60, TimeUnit.SECONDS))
+                if (!pool.awaitTermination(WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS))
                     logger.error("Pool did not terminate");
             }
         } catch (InterruptedException ie) {
