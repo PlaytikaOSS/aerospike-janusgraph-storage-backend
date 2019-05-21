@@ -80,12 +80,17 @@ public class WriteAheadLogCompleter {
         shutdownAndAwaitTermination(scheduledExecutorService);
     }
 
-    private void completeHangedTransactions(){
+    private void completeHangedTransactions() {
         try {
             if(acquireExclusiveLock()){
                 List<WriteAheadLogManager.WalTransaction> staleTransactions = writeAheadLogManager.getStaleTransactions();
                 logger.info("Got {} stale transactions", staleTransactions.size());
                 for(WriteAheadLogManager.WalTransaction transaction : staleTransactions){
+                    if(Thread.currentThread().isInterrupted()){
+                        logger.info("WAL execution was interrupted");
+                        break;
+                    }
+
                     logger.info("Trying to complete transaction id={}, timestamp={}",
                             transaction.transactionId, transaction.timestamp);
                     try {
