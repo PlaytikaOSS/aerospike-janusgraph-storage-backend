@@ -208,33 +208,39 @@ class LockOperations {
             return true;
         }
 
-        int columnsNo = locksForKey.size();
-        Value[] columns = new Value[columnsNo];
-        Operation[] operations = new Operation[columnsNo];
-        int i = 0;
-        for(Value column : locksForKey.keySet()){
-            columns[i] = column;
-            operations[i] = MapOperation.getByKey(ENTRIES_BIN_NAME, column, MapReturnType.VALUE);
-            i++;
-        }
-        Record record = client.operate(checkValuesPolicy, key, operations);
-        if(record != null){
-            if(columnsNo > 1){
-                List<?> resultList;
-                if((resultList = record.getList(ENTRIES_BIN_NAME)) != null){
-                    for(int j = 0, n = resultList.size(); j < n; j++){
-                        Value column = columns[j];
-                        if(!checkValue(key, column, locksForKey.get(column), (byte[])resultList.get(j))){
-                            return false;
+        try {
+            int columnsNo = locksForKey.size();
+            Value[] columns = new Value[columnsNo];
+            Operation[] operations = new Operation[columnsNo];
+            int i = 0;
+            for (Value column : locksForKey.keySet()) {
+                columns[i] = column;
+                operations[i] = MapOperation.getByKey(ENTRIES_BIN_NAME, column, MapReturnType.VALUE);
+                i++;
+            }
+            Record record = client.operate(checkValuesPolicy, key, operations);
+            if (record != null) {
+                if (columnsNo > 1) {
+                    List<?> resultList;
+                    if ((resultList = record.getList(ENTRIES_BIN_NAME)) != null) {
+                        for (int j = 0, n = resultList.size(); j < n; j++) {
+                            Value column = columns[j];
+                            if (!checkValue(key, column, locksForKey.get(column), (byte[]) resultList.get(j))) {
+                                return false;
+                            }
                         }
                     }
+                } else if (columnsNo == 1) {
+                    byte[] actualValueData = (byte[]) record.getValue(ENTRIES_BIN_NAME);
+                    Value column = columns[0];
+                    return checkValue(key, column, locksForKey.get(column), actualValueData);
                 }
-            } else if(columnsNo == 1){
-                byte[] actualValueData = (byte[])record.getValue(ENTRIES_BIN_NAME);
-                Value column = columns[0];
-                return checkValue(key, column, locksForKey.get(column), actualValueData);
             }
+        } catch (Throwable t) {
+            logger.error("Error while checkColumnValues for key={}, values={}", key, locksForKey, t);
+            throw t;
         }
+
         return true;
     }
 
