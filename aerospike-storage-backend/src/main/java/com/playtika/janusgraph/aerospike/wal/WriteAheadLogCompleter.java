@@ -18,12 +18,14 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.JANUS_AEROSPIKE_THREAD_GROUP_NAME;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.shutdownAndAwaitTermination;
+import static com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager.getBytesFromUUID;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 /**
@@ -36,7 +38,6 @@ public class WriteAheadLogCompleter {
     private static final Instant JAN_01_2010 = Instant.parse("2010-01-01T00:00:00.00Z");
 
     private static final Value EXCLUSIVE_LOCK_KEY = Value.get((byte)0);
-    private static final Bin EXCLUSIVE_LOCK_BIN = new Bin("EL", true);
 
     private final IAerospikeClient client;
     private final WriteAheadLogManager writeAheadLogManager;
@@ -44,6 +45,8 @@ public class WriteAheadLogCompleter {
     private final AerospikeStoreManager aerospikeStoreManager;
     private final WritePolicy putLockPolicy;
     private final Key exclusiveLockKey;
+    private final Bin exclusiveLockBin;
+    private int generation = 0;
 
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "wal")
@@ -57,13 +60,9 @@ public class WriteAheadLogCompleter {
         this.writeAheadLogManager = writeAheadLogManager;
         this.aerospikeStoreManager = aerospikeStoreManager;
 
-        this.putLockPolicy = new WritePolicy();
-        this.putLockPolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
-        this.putLockPolicy.expiration = (int)Duration.ofMillis(periodInMs).get(SECONDS);
-        if(this.putLockPolicy.expiration < 1){
-            throw new IllegalArgumentException("Wrong expiration for WAL lock: "+putLockPolicy.expiration);
-        }
+        this.putLockPolicy = buildPutLockPolicy(periodInMs);
 
+        this.exclusiveLockBin = new Bin("EL", getBytesFromUUID(UUID.randomUUID()));
 
         //set period to by slightly longer then expiration
         this.periodInMs = Duration.ofSeconds(putLockPolicy.expiration + 1).toMillis();
@@ -91,25 +90,27 @@ public class WriteAheadLogCompleter {
                         break;
                     }
 
-                    logger.info("Trying to complete transaction id={}, timestamp={}",
-                            transaction.transactionId, transaction.timestamp);
-                    try {
-                        aerospikeStoreManager.processAndDeleteTransaction(
-                                transaction.transactionId, transaction.locks, transaction.mutations, true);
-                        logger.info("Successfully complete transaction id={}", transaction.transactionId);
-                    }
-                    //this is expected behaviour that may have place in case of transaction was interrupted:
-                    // - on 'release locks' stage then transaction will fail and just need to release hanged locks
-                    // - on 'delete wal transaction' stage and just need to remove transaction
-                    catch (PermanentLockingException be) {
-                        logger.info("Failed to complete transaction id={} as it's already completed", transaction.transactionId, be);
-                        aerospikeStoreManager.releaseLocksAndDeleteWalTransaction(transaction.locks, transaction.transactionId);
-                        logger.info("released locks for transaction id={}", transaction.transactionId, be);
-                    }
-                    //even in case of error need to move to the next one
-                    catch (Exception e){
-                        logger.error("!!! Failed to complete transaction id={}, need to be investigated",
-                                transaction.transactionId, e);
+                    if(renewExclusiveLock()) {
+                        logger.info("Trying to complete transaction id={}, timestamp={}",
+                                transaction.transactionId, transaction.timestamp);
+                        try {
+                            aerospikeStoreManager.processAndDeleteTransaction(
+                                    transaction.transactionId, transaction.locks, transaction.mutations, true);
+                            logger.info("Successfully complete transaction id={}", transaction.transactionId);
+                        }
+                        //this is expected behaviour that may have place in case of transaction was interrupted:
+                        // - on 'release locks' stage then transaction will fail and just need to release hanged locks
+                        // - on 'delete wal transaction' stage and just need to remove transaction
+                        catch (PermanentLockingException be) {
+                            logger.info("Failed to complete transaction id={} as it's already completed", transaction.transactionId, be);
+                            aerospikeStoreManager.releaseLocksAndDeleteWalTransaction(transaction.locks, transaction.transactionId);
+                            logger.info("released locks for transaction id={}", transaction.transactionId, be);
+                        }
+                        //even in case of error need to move to the next one
+                        catch (Exception e) {
+                            logger.error("!!! Failed to complete transaction id={}, need to be investigated",
+                                    transaction.transactionId, e);
+                        }
                     }
                 }
             }
@@ -126,7 +127,8 @@ public class WriteAheadLogCompleter {
 
     private boolean acquireExclusiveLock(){
         try {
-            client.add(putLockPolicy, exclusiveLockKey, EXCLUSIVE_LOCK_BIN);
+            client.add(putLockPolicy, exclusiveLockKey, exclusiveLockBin);
+            generation++;
             logger.info("Successfully got exclusive lock, will check for hanged transactions");
             return true;
         } catch (AerospikeException e){
@@ -140,5 +142,37 @@ public class WriteAheadLogCompleter {
                 throw e;
             }
         }
+    }
+
+    private WritePolicy buildPutLockPolicy(long expirationInMs){
+        WritePolicy putLockPolicy = new WritePolicy();
+        putLockPolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
+        putLockPolicy.expiration = (int)Duration.ofMillis(expirationInMs).get(SECONDS);
+        if(putLockPolicy.expiration < 1){
+            throw new IllegalArgumentException("Wrong expiration for WAL lock: "+putLockPolicy.expiration);
+        }
+        return putLockPolicy;
+    }
+
+    private boolean renewExclusiveLock(){
+        try {
+            client.touch(buildTouchLockPolicy(putLockPolicy.expiration, generation++), exclusiveLockKey);
+            logger.info("Successfully renewed exclusive lock, will process transaction");
+            return true;
+        } catch (AerospikeException e){
+            logger.error("Failed while renew exclusive lock", e);
+            throw e;
+        }
+    }
+
+    private WritePolicy buildTouchLockPolicy(int expiration, int generation){
+        WritePolicy touchLockPolicy = new WritePolicy();
+        touchLockPolicy.recordExistsAction = RecordExistsAction.UPDATE_ONLY;
+        touchLockPolicy.generation = generation;
+        touchLockPolicy.expiration = expiration;
+        if(touchLockPolicy.expiration < 1){
+            throw new IllegalArgumentException("Wrong expiration for WAL lock: "+touchLockPolicy.expiration);
+        }
+        return touchLockPolicy;
     }
 }
