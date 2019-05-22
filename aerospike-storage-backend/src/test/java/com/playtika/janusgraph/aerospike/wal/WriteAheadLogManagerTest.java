@@ -33,7 +33,7 @@ public class WriteAheadLogManagerTest {
     private WriteAheadLogManager walManager = new WriteAheadLogManager(client, WAL_NAMESPACE, WAL_SET_NAME, clock, 1000);
 
     @Before
-    public void setUp() throws InterruptedException {
+    public void setUp() {
         client.truncate(null, WAL_NAMESPACE, null, null);
     }
 

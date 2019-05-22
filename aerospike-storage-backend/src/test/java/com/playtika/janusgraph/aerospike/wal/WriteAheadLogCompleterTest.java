@@ -1,71 +1,83 @@
 package com.playtika.janusgraph.aerospike.wal;
 
-import com.aerospike.client.IAerospikeClient;
+import com.aerospike.AerospikeContainer;
+import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Value;
 import com.playtika.janusgraph.aerospike.AerospikeStoreManager;
 import org.janusgraph.diskstorage.BackendException;
+import org.junit.ClassRule;
 import org.junit.Test;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import java.time.Clock;
+import java.util.HashMap;
+import java.util.Map;
 
-import static com.playtika.janusgraph.aerospike.util.AsyncUtil.INITIAL_WAIT_TIMEOUT_IN_SECONDS;
-import static com.playtika.janusgraph.aerospike.util.AsyncUtil.WAIT_TIMEOUT_IN_SECONDS;
-import static org.assertj.core.api.Assertions.assertThat;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class WriteAheadLogCompleterTest {
 
-    IAerospikeClient client = mock(IAerospikeClient.class);
-    WriteAheadLogManager writeAheadLogManager = mock(WriteAheadLogManager.class);
-    AerospikeStoreManager storeManager = mock(AerospikeStoreManager.class);
+    @ClassRule
+    public static AerospikeContainer container = getAerospikeContainer();
+
+    private AerospikeClient client = new AerospikeClient(null, container.getContainerIpAddress(), container.getPort());
+
+    static final String WAL_NAMESPACE = container.getNamespace();
+    static final String WAL_SET_NAME = "wal";
+
+    private Clock clock = mock(Clock.class);
+
+    public static final long STALE_TRANSACTION_LIFETIME_THRESHOLD_IN_MS = 1000;
+    private WriteAheadLogManager walManager = new WriteAheadLogManager(client, WAL_NAMESPACE, WAL_SET_NAME, clock, STALE_TRANSACTION_LIFETIME_THRESHOLD_IN_MS);
+
+    private AerospikeStoreManager storeManager = mock(AerospikeStoreManager.class);
 
     WriteAheadLogCompleter writeAheadLogCompleter = new WriteAheadLogCompleter(
-            client, "walNamespace", "walSetname",
-            writeAheadLogManager, 10000, storeManager);
+            client, WAL_NAMESPACE, WAL_SET_NAME,
+            walManager, 10000, storeManager);
 
     @Test
-    public void shouldShutdownCorrectly() throws BackendException, InterruptedException {
-        WriteAheadLogManager.WalTransaction walTransaction = new WriteAheadLogManager.WalTransaction(
-                Value.get("transId"), 1000, null, null
-        );
+    public void shouldCompleteStaleTransactions() throws BackendException, InterruptedException {
+        writeTransaction(0);
+        writeTransaction(1);
+        writeTransaction(2);
 
-        when(writeAheadLogManager.getStaleTransactions()).thenReturn(
-                IntStream.range(0, 100)
-                .mapToObj(i -> walTransaction)
-                .collect(Collectors.toList()));
-
-        AtomicInteger processProgress = new AtomicInteger();
-
-        int sleepTime = 100;
-
-        Mockito.doAnswer(e -> {
-            processProgress.incrementAndGet();
-
-            long start = System.currentTimeMillis();
-            while(System.currentTimeMillis() - start < 100L){}
-
-            return null;
-        }).when(storeManager).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
+        when(clock.millis()).thenReturn(STALE_TRANSACTION_LIFETIME_THRESHOLD_IN_MS + 5);
 
         writeAheadLogCompleter.start();
 
-        while (processProgress.get() < 1) {
-            Thread.sleep(sleepTime); }
+        Thread.sleep(100);
 
         writeAheadLogCompleter.shutdown();
 
-        assertThat(processProgress.get()).isEqualTo(INITIAL_WAIT_TIMEOUT_IN_SECONDS * 1000 / sleepTime + 1);
+        verify(storeManager, times(3)).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
+    }
+
+    private void writeTransaction(long timestamp){
+        Map<String, Map<Value, Map<Value, Value>>> locks = new HashMap<String, Map<Value, Map<Value, Value>>>(){{
+            put("storeName", new HashMap<Value, Map<Value, Value>>(){{
+                put(Value.get(new byte[]{1,2,3}),
+                        new HashMap<Value, Value>(){{
+                            put(Value.get(new byte[]{0}), Value.get(new byte[]{1}));
+                            put(Value.get(new byte[]{1}), Value.NULL);
+                        }});
+            }});
+        }};
+
+        Map<String, Map<Value, Map<Value, Value>>> mutations = new HashMap<String, Map<Value, Map<Value, Value>>>(){{
+            put("storeName", new HashMap<Value, Map<Value, Value>>(){{
+                put(Value.get(new byte[]{1,2,3}),
+                        new HashMap<Value, Value>(){{
+                            put(Value.get(new byte[]{0}), Value.NULL);
+                            put(Value.get(new byte[]{1}), Value.get(new byte[]{1}));
+                        }});
+            }});
+        }};
+
+        when(clock.millis()).thenReturn(timestamp);
+        walManager.writeTransaction(locks, mutations);
     }
 
 }
