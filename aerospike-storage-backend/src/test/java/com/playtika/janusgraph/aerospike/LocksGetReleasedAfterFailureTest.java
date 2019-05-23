@@ -3,6 +3,7 @@ package com.playtika.janusgraph.aerospike;
 import com.aerospike.AerospikeContainer;
 import com.aerospike.client.Key;
 import com.aerospike.client.Value;
+import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
@@ -28,8 +29,10 @@ import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.*;
@@ -179,6 +182,20 @@ public class LocksGetReleasedAfterFailureTest {
         @Override
         public AKeyColumnValueStore openDatabase(String name) {
             return super.openDatabase(name);
+        }
+
+        @Override
+        TransactionalOperations initTransactionalOperations(Function<String, AKeyColumnValueStore> databaseFactory,
+                                                            WriteAheadLogManager writeAheadLogManager,
+                                                            LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
+            return new FlakingTransactionalOperation(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
+        }
+    }
+
+    private static class FlakingTransactionalOperation extends TransactionalOperations {
+
+        public FlakingTransactionalOperation(Function<String, AKeyColumnValueStore> databaseFactory, WriteAheadLogManager writeAheadLogManager, LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
+            super(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
         }
 
         @Override
