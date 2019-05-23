@@ -4,8 +4,6 @@ import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.AerospikeException;
 import com.aerospike.client.Host;
 import com.aerospike.client.IAerospikeClient;
-import com.aerospike.client.Key;
-import com.aerospike.client.Value;
 import com.aerospike.client.policy.ClientPolicy;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -14,7 +12,6 @@ import com.playtika.janusgraph.aerospike.wal.WriteAheadLogCompleter;
 import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
-import org.janusgraph.diskstorage.Entry;
 import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.StoreMetaData;
@@ -30,26 +27,18 @@ import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.janusgraph.graphdb.configuration.PreInitializeConfigOptions;
 
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.getValue;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
-import static com.playtika.janusgraph.aerospike.util.AsyncUtil.completeAll;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.shutdownAndAwaitTermination;
-import static java.util.Arrays.asList;
-import static java.util.concurrent.CompletableFuture.runAsync;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 
 
@@ -68,6 +57,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     private final String namespace;
 
     private final LockOperations lockOperations;
+    private final TransactionalOperations transactionalOperations;
 
     private final WriteAheadLogManager writeAheadLogManager;
     private final WriteAheadLogCompleter writeAheadLogCompleter;
@@ -95,11 +85,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         String walNamespace = configuration.get(WAL_NAMESPACE);
         Long staleTransactionLifetimeThresholdInMs = configuration.get(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD);
         String walSetName = graphPrefix + ".wal";
-        writeAheadLogManager = new WriteAheadLogManager(client, walNamespace, walSetName,
-                getClock(), staleTransactionLifetimeThresholdInMs);
-        writeAheadLogCompleter = new WriteAheadLogCompleter(client, walNamespace, walSetName,
-                writeAheadLogManager, staleTransactionLifetimeThresholdInMs, this);
-        writeAheadLogCompleter.start();
 
         scanExecutor = new ThreadPoolExecutor(0, configuration.get(SCAN_PARALLELISM),
                 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
@@ -109,7 +94,25 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
                 new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "main"));
 
+
         lockOperations = new LockOperations(client, namespace, graphPrefix, aerospikeExecutor);
+
+        writeAheadLogManager = new WriteAheadLogManager(client, walNamespace, walSetName,
+                getClock(), staleTransactionLifetimeThresholdInMs);
+
+        transactionalOperations = initTransactionalOperations(this::openDatabase, writeAheadLogManager,
+                lockOperations, aerospikeExecutor);
+
+        writeAheadLogCompleter = new WriteAheadLogCompleter(client, walNamespace, walSetName,
+                writeAheadLogManager, staleTransactionLifetimeThresholdInMs, transactionalOperations);
+
+        writeAheadLogCompleter.start();
+    }
+
+    TransactionalOperations initTransactionalOperations(Function<String, AKeyColumnValueStore> databaseFactory,
+                                                        WriteAheadLogManager writeAheadLogManager,
+                                                        LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
+        return new TransactionalOperations(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
     }
 
     protected StandardStoreFeatures features(Configuration configuration) {
@@ -161,6 +164,11 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     }
 
     @Override
+    public StoreTransaction beginTransaction(final BaseTransactionConfig config) {
+        return new AerospikeTransaction(config);
+    }
+
+    @Override
     public AKeyColumnValueStore openDatabase(String name) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "Database name may not be null or empty");
 
@@ -174,104 +182,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     }
 
     @Override
-    public StoreTransaction beginTransaction(final BaseTransactionConfig config) {
-        return new AerospikeTransaction(config);
-    }
-
-    @Override
     public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) throws BackendException {
-        Map<String, Map<Value, Map<Value, Value>>> locksByStore = groupLocksByStoreKeyColumn(
-                ((AerospikeTransaction) txh).getLocks());
-
-        Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
-
-        Value transactionId = writeAheadLogManager.writeTransaction(locksByStore, mutationsByStore);
-
-        processAndDeleteTransaction(transactionId, locksByStore, mutationsByStore, false);
-    }
-
-    public void processAndDeleteTransaction(Value transactionId,
-                                             Map<String, Map<Value, Map<Value, Value>>> locksByStore,
-                                             Map<String, Map<Value, Map<Value, Value>>> mutationsByStore,
-                                             boolean checkTransactionId) throws BackendException {
-        Set<Key> keysLocked = lockOperations.acquireLocks(transactionId, locksByStore, checkTransactionId);
-        try {
-            mutateMany(mutationsByStore);
-        } catch (AerospikeException e) {
-            throw new PermanentBackendException(e);
-        } finally {
-            releaseLocksAndDeleteWalTransaction(keysLocked, transactionId);
-        }
-    }
-
-    public void releaseLocksAndDeleteWalTransaction(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Value transactionId) throws BackendException {
-        lockOperations.releaseLocks(locksByStore);
-        deleteWalTransaction(transactionId);
-    }
-
-    private void releaseLocksAndDeleteWalTransaction(Set<Key> keysLocked, Value transactionId) throws BackendException {
-        releaseLocks(keysLocked);
-        deleteWalTransaction(transactionId);
-    }
-
-    void releaseLocks(Set<Key> keysLocked) throws BackendException {
-        lockOperations.releaseLocks(keysLocked);
-    }
-
-    void deleteWalTransaction(Value transactionId) {
-        writeAheadLogManager.deleteTransaction(transactionId);
-    }
-
-    static Map<String, Map<Value, Map<Value, Value>>> groupLocksByStoreKeyColumn(List<AerospikeLock> locks){
-        return locks.stream()
-                .collect(Collectors.groupingBy(lock -> lock.storeName,
-                        Collectors.groupingBy(lock -> getValue(lock.key),
-                                Collectors.toMap(
-                                        lock -> getValue(lock.column),
-                                        lock -> lock.expectedValue != null ? getValue(lock.expectedValue) : Value.NULL,
-                                        (oldValue, newValue) -> oldValue))));
-    }
-
-    private static Map<String, Map<Value, Map<Value, Value>>> groupMutationsByStoreKeyColumn(
-            Map<String, Map<StaticBuffer, KCVMutation>> mutationsByStore){
-        Map<String, Map<Value, Map<Value, Value>>> mapByStore = new HashMap<>(mutationsByStore.size());
-        for(Map.Entry<String, Map<StaticBuffer, KCVMutation>> storeMutations : mutationsByStore.entrySet()) {
-            Map<Value, Map<Value, Value>> map = new HashMap<>(storeMutations.getValue().size());
-            for (Map.Entry<StaticBuffer, KCVMutation> mutationEntry : storeMutations.getValue().entrySet()) {
-                map.put(getValue(mutationEntry.getKey()), mutationToMap(mutationEntry.getValue()));
-            }
-            mapByStore.put(storeMutations.getKey(), map);
-        }
-        return mapByStore;
-    }
-
-    static Map<Value, Value> mutationToMap(KCVMutation mutation){
-        Map<Value, Value> map = new HashMap<>(mutation.getAdditions().size() + mutation.getDeletions().size());
-        for(StaticBuffer deletion : mutation.getDeletions()){
-            map.put(getValue(deletion), Value.NULL);
-        }
-
-        for(Entry addition : mutation.getAdditions()){
-            map.put(getValue(addition.getColumn()), getValue(addition.getValue()));
-        }
-        return map;
-    }
-
-    private void mutateMany(
-            Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) throws PermanentBackendException {
-
-        List<CompletableFuture<?>> mutations = new ArrayList<>();
-
-        mutationsByStore.forEach((storeName, storeMutations) -> {
-            final AKeyColumnValueStore store = openDatabase(storeName);
-            for(Map.Entry<Value, Map<Value, Value>> mutationEntry : storeMutations.entrySet()){
-                Value key = mutationEntry.getKey();
-                Map<Value, Value> mutation = mutationEntry.getValue();
-                mutations.add(runAsync(() -> store.mutate(key, mutation), aerospikeExecutor));
-            }
-        });
-
-        completeAll(mutations);
+        transactionalOperations.mutateManyTransactionally(mutations, txh);
     }
 
     @Override
@@ -319,6 +231,11 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     }
 
 
+    WriteAheadLogManager getWriteAheadLogManager() {
+        return writeAheadLogManager;
+    }
 
-
+    public WriteAheadLogCompleter getWriteAheadLogCompleter() {
+        return writeAheadLogCompleter;
+    }
 }

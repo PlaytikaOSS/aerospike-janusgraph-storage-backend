@@ -236,6 +236,10 @@ class LockOperations {
                     return checkValue(key, column, locksForKey.get(column), actualValueData);
                 }
             }
+            else {
+                return locksForKey.values().stream()
+                        .allMatch(value -> value.equals(Value.NULL));
+            }
         } catch (Throwable t) {
             logger.error("Error while checkColumnValues for key={}, values={}", key, locksForKey, t);
             throw t;

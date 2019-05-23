@@ -8,7 +8,7 @@ import com.aerospike.client.ResultCode;
 import com.aerospike.client.Value;
 import com.aerospike.client.policy.RecordExistsAction;
 import com.aerospike.client.policy.WritePolicy;
-import com.playtika.janusgraph.aerospike.AerospikeStoreManager;
+import com.playtika.janusgraph.aerospike.TransactionalOperations;
 import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.locking.PermanentLockingException;
@@ -42,7 +42,7 @@ public class WriteAheadLogCompleter {
     private final IAerospikeClient client;
     private final WriteAheadLogManager writeAheadLogManager;
     private final long periodInMs;
-    private final AerospikeStoreManager aerospikeStoreManager;
+    private final TransactionalOperations transactionalOperations;
     private final WritePolicy putLockPolicy;
     private final Key exclusiveLockKey;
     private final Bin exclusiveLockBin;
@@ -54,11 +54,11 @@ public class WriteAheadLogCompleter {
 
     public WriteAheadLogCompleter(IAerospikeClient aerospikeClient, String walNamespace, String walSetName,
                            WriteAheadLogManager writeAheadLogManager, long periodInMs,
-                           AerospikeStoreManager aerospikeStoreManager){
+                           TransactionalOperations transactionalOperations){
 
         this.client = aerospikeClient;
         this.writeAheadLogManager = writeAheadLogManager;
-        this.aerospikeStoreManager = aerospikeStoreManager;
+        this.transactionalOperations = transactionalOperations;
 
         this.putLockPolicy = buildPutLockPolicy(periodInMs);
 
@@ -94,7 +94,7 @@ public class WriteAheadLogCompleter {
                         logger.info("Trying to complete transaction id={}, timestamp={}",
                                 transaction.transactionId, transaction.timestamp);
                         try {
-                            aerospikeStoreManager.processAndDeleteTransaction(
+                            transactionalOperations.processAndDeleteTransaction(
                                     transaction.transactionId, transaction.locks, transaction.mutations, true);
                             logger.info("Successfully complete transaction id={}", transaction.transactionId);
                         }
@@ -103,7 +103,7 @@ public class WriteAheadLogCompleter {
                         // - on 'delete wal transaction' stage and just need to remove transaction
                         catch (PermanentLockingException be) {
                             logger.info("Failed to complete transaction id={} as it's already completed", transaction.transactionId, be);
-                            aerospikeStoreManager.releaseLocksAndDeleteWalTransaction(transaction.locks, transaction.transactionId);
+                            transactionalOperations.releaseLocksAndDeleteWalTransaction(transaction.locks, transaction.transactionId);
                             logger.info("released locks for transaction id={}", transaction.transactionId, be);
                         }
                         //even in case of error need to move to the next one

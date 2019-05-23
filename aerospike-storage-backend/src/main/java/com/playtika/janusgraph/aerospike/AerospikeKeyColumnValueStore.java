@@ -41,9 +41,9 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.groupLocksByStoreKeyColumn;
-import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.mutationToMap;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
+import static com.playtika.janusgraph.aerospike.TransactionalOperations.groupLocksByStoreKeyColumn;
+import static com.playtika.janusgraph.aerospike.TransactionalOperations.mutationToMap;
 import static java.util.Collections.*;
 
 public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {

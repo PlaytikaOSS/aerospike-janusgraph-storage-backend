@@ -19,7 +19,7 @@ public class AerospikeTestUtils {
         return new AerospikeContainer(AEROSPIKE_IMAGE).withNamespace(TEST_NAMESPACE);
     }
 
-    static ModifiableConfiguration getAerospikeConfiguration(AerospikeContainer container) {
+    public static ModifiableConfiguration getAerospikeConfiguration(AerospikeContainer container) {
 
         ModifiableConfiguration config = buildGraphConfiguration();
         config.set(STORAGE_HOSTS, new String[]{container.getContainerIpAddress()});

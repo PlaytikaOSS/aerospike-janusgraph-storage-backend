@@ -2,22 +2,16 @@ package com.playtika.janusgraph.aerospike.wal;
 
 import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.Value;
-import com.playtika.janusgraph.aerospike.AerospikeStoreManager;
+import com.playtika.janusgraph.aerospike.TransactionalOperations;
 import org.janusgraph.diskstorage.BackendException;
 import org.junit.Test;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.INITIAL_WAIT_TIMEOUT_IN_SECONDS;
-import static com.playtika.janusgraph.aerospike.util.AsyncUtil.WAIT_TIMEOUT_IN_SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -28,11 +22,11 @@ public class WriteAheadLogCompleterShutdownTest {
 
     IAerospikeClient client = mock(IAerospikeClient.class);
     WriteAheadLogManager writeAheadLogManager = mock(WriteAheadLogManager.class);
-    AerospikeStoreManager storeManager = mock(AerospikeStoreManager.class);
+    TransactionalOperations transactionalOperations = mock(TransactionalOperations.class);
 
     WriteAheadLogCompleter writeAheadLogCompleter = new WriteAheadLogCompleter(
             client, "walNamespace", "walSetname",
-            writeAheadLogManager, 10000, storeManager);
+            writeAheadLogManager, 10000, transactionalOperations);
 
     @Test
     public void shouldShutdownCorrectly() throws BackendException, InterruptedException {
@@ -56,7 +50,7 @@ public class WriteAheadLogCompleterShutdownTest {
             while(System.currentTimeMillis() - start < 100L){}
 
             return null;
-        }).when(storeManager).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
+        }).when(transactionalOperations).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
 
         writeAheadLogCompleter.start();
 
