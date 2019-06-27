@@ -75,7 +75,7 @@
         <junit.version>4.12</junit.version>
         <assertj.version>3.9.0</assertj.version>
         <slf4j-api.version>1.7.12</slf4j-api.version>
-        <log4j.version>2.11.1</log4j.version>
+        <log4j.version>2.11.2</log4j.version>
 
         <!--plugins -->
         <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
