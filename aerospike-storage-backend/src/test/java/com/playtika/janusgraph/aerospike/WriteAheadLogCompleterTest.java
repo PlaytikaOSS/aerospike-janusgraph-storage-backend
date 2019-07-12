@@ -1,6 +1,5 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.AerospikeContainer;
 import com.aerospike.client.Value;
 import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
 import org.janusgraph.diskstorage.BackendException;
@@ -8,6 +7,7 @@ import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.testcontainers.containers.GenericContainer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,8 +27,9 @@ public class WriteAheadLogCompleterTest {
     public static final byte[] COLUMN_2 = {1};
     public static final String STORE_NAME = "storeName";
     public static final long STALE_THRESHOLD = 1000L;
+
     @ClassRule
-    public static AerospikeContainer container = getAerospikeContainer();
+    public static GenericContainer container = getAerospikeContainer();
 
     private final Value key = Value.get(new byte[]{1, 2, 3});
 

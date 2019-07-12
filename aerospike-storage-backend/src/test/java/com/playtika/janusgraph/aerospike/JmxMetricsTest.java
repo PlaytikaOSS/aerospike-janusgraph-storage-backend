@@ -1,6 +1,5 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.AerospikeContainer;
 import com.codahale.metrics.MetricFilter;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
@@ -11,6 +10,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.testcontainers.containers.GenericContainer;
 
 import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
@@ -41,7 +41,7 @@ public class JmxMetricsTest {
     private static final String JANUSGRAPH_JMX_DOMAIN = "janusgraph";
 
     @Rule
-    public AerospikeContainer aerospike = getAerospikeContainer();
+    public GenericContainer aerospike = getAerospikeContainer();
 
     @Before
     public void before() throws MalformedObjectNameException, InstanceNotFoundException, MBeanRegistrationException {

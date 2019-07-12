@@ -60,7 +60,7 @@ public class AsyncUtil {
                 pool.shutdownNow(); // Cancel currently executing tasks
                 // Wait a while for tasks to respond to being cancelled
                 if (!pool.awaitTermination(WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS))
-                    logger.error("Pool did not terminate");
+                    logger.error("Pool [{}] did not terminate", pool);
             }
         } catch (InterruptedException ie) {
             // (Re-)Cancel if current thread also interrupted

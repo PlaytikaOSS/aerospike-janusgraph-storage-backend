@@ -1,11 +1,12 @@
 package com.playtika.janusgraph.aerospike.wal;
 
-import com.aerospike.AerospikeContainer;
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Value;
+import com.playtika.janusgraph.aerospike.TestAerospikePolicyProvider;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.testcontainers.containers.GenericContainer;
 
 import java.time.Clock;
 import java.util.Arrays;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager.toBytes;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,15 +24,17 @@ import static org.mockito.Mockito.when;
 public class WriteAheadLogManagerTest {
 
     @ClassRule
-    public static AerospikeContainer container = getAerospikeContainer();
+    public static GenericContainer container = getAerospikeContainer();
 
-    private AerospikeClient client = new AerospikeClient(null, container.getContainerIpAddress(), container.getPort());
+    private AerospikeClient client = new AerospikeClient(null, container.getContainerIpAddress(),
+            container.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
 
-    static final String WAL_NAMESPACE = container.getNamespace();
+    static final String WAL_NAMESPACE = AEROSPIKE_PROPERTIES.getNamespace();
     static final String WAL_SET_NAME = "wal";
 
     private Clock clock = mock(Clock.class);
-    private WriteAheadLogManager walManager = new WriteAheadLogManager(client, WAL_NAMESPACE, WAL_SET_NAME, clock, 1000);
+    private WriteAheadLogManager walManager = new WriteAheadLogManager(
+            client, WAL_NAMESPACE, WAL_SET_NAME, clock, 1000, new TestAerospikePolicyProvider());
 
     @Before
     public void setUp() {
@@ -39,7 +43,8 @@ public class WriteAheadLogManagerTest {
 
     @Test
     public void shouldNotFailIfIndexAlreadyCreated(){
-        new WriteAheadLogManager(client, WAL_NAMESPACE, WAL_SET_NAME, clock, 1000);
+        new WriteAheadLogManager(client, WAL_NAMESPACE, WAL_SET_NAME, clock, 1000,
+                new TestAerospikePolicyProvider());
     }
 
     @Test
