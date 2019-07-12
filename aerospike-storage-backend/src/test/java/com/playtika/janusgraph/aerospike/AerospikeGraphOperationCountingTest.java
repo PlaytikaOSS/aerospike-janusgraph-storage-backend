@@ -1,9 +1,9 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.AerospikeContainer;
 import org.janusgraph.diskstorage.configuration.WriteConfiguration;
 import org.janusgraph.graphdb.JanusGraphOperationCountingTest;
 import org.junit.ClassRule;
+import org.testcontainers.containers.GenericContainer;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
@@ -11,7 +11,7 @@ import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeC
 public class AerospikeGraphOperationCountingTest extends JanusGraphOperationCountingTest {
 
     @ClassRule
-    public static AerospikeContainer container = getAerospikeContainer();
+    public static GenericContainer container = getAerospikeContainer();
 
     @Override
     public WriteConfiguration getBaseConfiguration() {

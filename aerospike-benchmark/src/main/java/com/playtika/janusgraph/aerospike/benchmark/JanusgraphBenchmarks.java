@@ -1,21 +1,33 @@
 package com.playtika.janusgraph.aerospike.benchmark;
 
-import com.aerospike.AerospikeContainer;
+import com.aerospike.AerospikeContainerUtils;
+import com.aerospike.AerospikeProperties;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 import org.testcontainers.containers.CassandraContainer;
+import org.testcontainers.containers.GenericContainer;
 
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static com.playtika.janusgraph.aerospike.benchmark.Configurations.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.benchmark.Configurations.getCQLConfiguration;
-import static com.playtika.janusgraph.aerospike.benchmark.Graph.*;
+import static com.playtika.janusgraph.aerospike.benchmark.Graph.buildRandomGraph;
+import static com.playtika.janusgraph.aerospike.benchmark.Graph.defineSchema;
 
 @Measurement(iterations = 10, time = 1)
 @Warmup(iterations = 5, time = 1)
@@ -26,7 +38,7 @@ import static com.playtika.janusgraph.aerospike.benchmark.Graph.*;
 public class JanusgraphBenchmarks {
 
     private CassandraContainer cassandra;
-    private AerospikeContainer aerospike;
+    private GenericContainer aerospike;
     private JanusGraph aerospikeGraph;
     private JanusGraph cassandraGraph;
 
@@ -37,9 +49,9 @@ public class JanusgraphBenchmarks {
         cassandraGraph = JanusGraphFactory.open(getCQLConfiguration(cassandra));
         defineSchema(cassandraGraph);
 
-        aerospike = new AerospikeContainer("aerospike/aerospike-server:4.3.0.2").withNamespace("TEST");
-        aerospike.start();
-        aerospikeGraph = JanusGraphFactory.open(getAerospikeConfiguration(aerospike));
+        AerospikeProperties properties = new AerospikeProperties();
+        aerospike = AerospikeContainerUtils.startAerospikeContainer(properties);
+        aerospikeGraph = JanusGraphFactory.open(getAerospikeConfiguration(aerospike, properties));
         defineSchema(aerospikeGraph);
     }
 

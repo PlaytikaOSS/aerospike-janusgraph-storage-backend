@@ -7,10 +7,13 @@ import com.aerospike.client.Key;
 import com.aerospike.client.Record;
 import com.aerospike.client.ResultCode;
 import com.aerospike.client.Value;
+import com.aerospike.client.policy.RecordExistsAction;
+import com.aerospike.client.policy.WritePolicy;
 import com.aerospike.client.query.Filter;
 import com.aerospike.client.query.IndexType;
 import com.aerospike.client.query.RecordSet;
 import com.aerospike.client.query.Statement;
+import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,15 +44,22 @@ public class WriteAheadLogManager {
     private final String secondaryIndexName;
     private final Clock clock;
     private final long staleTransactionLifetimeThresholdInMs;
+    private WritePolicy writePolicy;
+    private WritePolicy deletePolicy;
 
     public WriteAheadLogManager(IAerospikeClient client, String walNamespace, String walSetName,
-                                Clock clock, long staleTransactionLifetimeThresholdInMs) {
+                                Clock clock, long staleTransactionLifetimeThresholdInMs,
+                                AerospikePolicyProvider aerospikePolicyProvider) {
         this.client = client;
         this.walNamespace = walNamespace;
         this.walSetName = walSetName;
         this.secondaryIndexName = walSetName;
         this.clock = clock;
         this.staleTransactionLifetimeThresholdInMs = staleTransactionLifetimeThresholdInMs;
+        this.writePolicy = new WritePolicy(aerospikePolicyProvider.writePolicy());
+        this.writePolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
+
+        this.deletePolicy = aerospikePolicyProvider.deletePolicy();
 
         try {
             client.createIndex(null, walNamespace, walSetName, secondaryIndexName, TIMESTAMP_BIN, IndexType.NUMERIC)
@@ -68,7 +78,7 @@ public class WriteAheadLogManager {
 
         Value transactionId = Value.get(getBytesFromUUID(UUID.randomUUID()));
         try {
-            client.put(null,
+            client.put(writePolicy,
                     new Key(walNamespace, walSetName, transactionId),
                     new Bin(UUID_BIN, transactionId),
                     new Bin(TIMESTAMP_BIN, Value.get(clock.millis())),
@@ -85,7 +95,7 @@ public class WriteAheadLogManager {
     }
 
     public void deleteTransaction(Value transactionId) {
-        client.delete(null, new Key(walNamespace, walSetName, transactionId));
+        client.delete(deletePolicy, new Key(walNamespace, walSetName, transactionId));
     }
 
     private Value stringMapToValue(Map<String, Map<Value, Map<Value, Value>>> map){

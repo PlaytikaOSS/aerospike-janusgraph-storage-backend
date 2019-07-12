@@ -1,14 +1,14 @@
 package com.playtika.janusgraph.aerospike.benchmark;
 
-import com.aerospike.AerospikeContainer;
+import com.aerospike.AerospikeProperties;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.testcontainers.containers.CassandraContainer;
+import org.testcontainers.containers.GenericContainer;
 
 import java.time.Duration;
 
 import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.AEROSPIKE_BUFFER_SIZE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
-import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
 import static org.janusgraph.diskstorage.cql.CQLConfigOptions.KEYSPACE;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 
@@ -16,18 +16,18 @@ public class Configurations {
 
     public static final String TEST_NAMESPACE = "TEST";
 
-    static ModifiableConfiguration getAerospikeConfiguration(AerospikeContainer container) {
+    static ModifiableConfiguration getAerospikeConfiguration(GenericContainer container, AerospikeProperties properties) {
 
         ModifiableConfiguration config = buildGraphConfiguration();
         config.set(STORAGE_HOSTS, new String[]{container.getContainerIpAddress()});
-        config.set(STORAGE_PORT, container.getPort());
+        config.set(STORAGE_PORT, container.getMappedPort(properties.getPort()));
         config.set(STORAGE_BACKEND, "com.playtika.janusgraph.aerospike.AerospikeStoreManager");
-        config.set(NAMESPACE, TEST_NAMESPACE);
-        config.set(WAL_NAMESPACE, TEST_NAMESPACE);
+        config.set(NAMESPACE, properties.getNamespace());
+        config.set(WAL_NAMESPACE, properties.getNamespace());
         config.set(GRAPH_PREFIX, "test");
         //!!! need to prevent small batches mutations as we use deferred locking approach !!!
         config.set(BUFFER_SIZE, AEROSPIKE_BUFFER_SIZE);
-        config.set(ALLOW_SCAN, true);  //for test purposes only
+        config.set(TEST_ENVIRONMENT, true);  //for test purposes only
         return config;
     }
 

@@ -53,7 +53,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     private final IAerospikeClient client;
 
-    private final Configuration configuration;
     private final String namespace;
 
     private final LockOperations lockOperations;
@@ -66,7 +65,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     private final ThreadPoolExecutor aerospikeExecutor;
     private final String graphPrefix;
-
+    private final AerospikePolicyProvider aerospikePolicyProvider;
 
     public AerospikeStoreManager(Configuration configuration) {
         super(configuration);
@@ -76,7 +75,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
         client = buildAerospikeClient(configuration);
 
-        this.configuration = configuration;
         this.namespace = configuration.get(NAMESPACE);
         this.graphPrefix = configuration.get(GRAPH_PREFIX);
 
@@ -94,11 +92,12 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
                 new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "main"));
 
+        aerospikePolicyProvider = buildPolicyProvider(configuration);
 
-        lockOperations = new LockOperations(client, namespace, graphPrefix, aerospikeExecutor);
+        lockOperations = new LockOperations(client, namespace, graphPrefix, aerospikeExecutor, aerospikePolicyProvider);
 
         writeAheadLogManager = new WriteAheadLogManager(client, walNamespace, walSetName,
-                getClock(), staleTransactionLifetimeThresholdInMs);
+                getClock(), staleTransactionLifetimeThresholdInMs, aerospikePolicyProvider);
 
         transactionalOperations = initTransactionalOperations(this::openDatabase, writeAheadLogManager,
                 lockOperations, aerospikeExecutor);
@@ -115,7 +114,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         return new TransactionalOperations(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
     }
 
-    protected StandardStoreFeatures features(Configuration configuration) {
+    private StandardStoreFeatures features(Configuration configuration) {
         return new StandardStoreFeatures.Builder()
                 .keyConsistent(configuration)
                 .persists(true)
@@ -157,10 +156,11 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         ClientPolicy clientPolicy = new ClientPolicy();
         clientPolicy.user = storageConfig.has(AUTH_USERNAME) ? storageConfig.get(AUTH_USERNAME) : null;
         clientPolicy.password = storageConfig.has(AUTH_PASSWORD) ? storageConfig.get(AUTH_PASSWORD) : null;
-        clientPolicy.writePolicyDefault.sendKey = true;
-        clientPolicy.readPolicyDefault.sendKey = true;
-        clientPolicy.scanPolicyDefault.sendKey = true;
         return clientPolicy;
+    }
+
+    private AerospikePolicyProvider buildPolicyProvider(Configuration configuration) {
+        return configuration.get(TEST_ENVIRONMENT) ? new TestAerospikePolicyProvider() : new AerospikePolicyProvider();
     }
 
     @Override
@@ -173,7 +173,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "Database name may not be null or empty");
 
         return new AerospikeKeyColumnValueStore(namespace, graphPrefix, name,
-                client, configuration, lockOperations, aerospikeExecutor, scanExecutor, writeAheadLogManager);
+                client, lockOperations, aerospikeExecutor, scanExecutor,
+                writeAheadLogManager, aerospikePolicyProvider);
     }
 
     @Override

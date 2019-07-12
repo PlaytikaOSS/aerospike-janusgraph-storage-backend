@@ -52,18 +52,21 @@ class LockOperations {
     private String graphPrefix;
     private final Executor aerospikeExecutor;
     private final WritePolicy putLockPolicy;
+    private final WritePolicy deleteLockPolicy;
 
     LockOperations(IAerospikeClient client,
                    String namespace, String graphPrefix,
-                   Executor aerospikeExecutor) {
+                   Executor aerospikeExecutor,
+                   AerospikePolicyProvider aerospikePolicyProvider) {
         this.namespace = namespace;
         this.client = client;
         this.graphPrefix = graphPrefix + ".";
         this.aerospikeExecutor = aerospikeExecutor;
 
-        putLockPolicy = new WritePolicy();
+        putLockPolicy = new WritePolicy(aerospikePolicyProvider.writePolicy());
         putLockPolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
-        putLockPolicy.expiration = 0;  //never expire
+
+        deleteLockPolicy = aerospikePolicyProvider.deletePolicy();
     }
 
     Set<Key> acquireLocks(Value transactionId, Map<String, Map<Value, Map<Value, Value>>> locksByStore,
@@ -172,13 +175,9 @@ class LockOperations {
     void releaseLocks(Collection<Key> keys) throws BackendException {
         List<CompletableFuture<?>> futures = new ArrayList<>(keys.size());
         for(Key lockKey : keys){
-            futures.add(runAsync(() -> client.delete(null, lockKey), aerospikeExecutor));
+            futures.add(runAsync(() -> client.delete(deleteLockPolicy, lockKey), aerospikeExecutor));
         }
         completeAll(futures);
-    }
-
-    void releaseLocks(Map<String, Map<Value, Map<Value, Value>>> locksByStore) throws BackendException {
-        releaseLocks(getLockKeys(locksByStore));
     }
 
     public List<Key> getLockKeys(Map<String, Map<Value, Map<Value, Value>>> locksByStore){

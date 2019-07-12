@@ -1,6 +1,5 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.AerospikeContainer;
 import com.aerospike.client.Key;
 import com.aerospike.client.Value;
 import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
@@ -30,6 +29,7 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.GenericContainer;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -57,7 +57,7 @@ public class GraphConsistencyAfterFailureTest {
     private static Logger logger = LoggerFactory.getLogger(GraphConsistencyAfterFailureTest.class);
 
     @ClassRule
-    public static AerospikeContainer container = getAerospikeContainer();
+    public static GenericContainer container = getAerospikeContainer();
 
     public static final String CREDENTIAL_TYPE = "credentialType";
     public static final String CREDENTIAL_VALUE = "credentialValue";
@@ -72,7 +72,7 @@ public class GraphConsistencyAfterFailureTest {
     @Test
     public void shouldBecameConsistentAfterFailure() throws InterruptedException, BackendException {
         for(int i = 0; i < 20; i++) {
-            deleteAllRecords(container, container.getNamespace());
+            deleteAllRecords(container);
 
             JanusGraph graph = openGraph();
 

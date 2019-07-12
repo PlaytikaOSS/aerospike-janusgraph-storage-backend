@@ -17,10 +17,6 @@ public class ConfigOptions {
             "wal-namespace", "Aerospike namespace to use for write ahead log",
             ConfigOption.Type.LOCAL, String.class);
 
-    public static final ConfigOption<Boolean> ALLOW_SCAN = new ConfigOption<>(STORAGE_NS,
-            "allow-scan", "Whether to allow scans on graph. Can't be changed after graph creation",
-            ConfigOption.Type.LOCAL, false);
-
     public static final ConfigOption<Integer> SCAN_PARALLELISM = new ConfigOption<>(STORAGE_NS,
             "scan-parallelism", "How many threads may perform scan operations simultaneously",
             ConfigOption.Type.LOCAL, 1);
@@ -33,5 +29,9 @@ public class ConfigOptions {
             "wal-threshold", "After this period of time (in ms) transaction in WAL considered to be stale " +
             "and can be re-processed",
             ConfigOption.Type.LOCAL, 60000L);
+
+    public static final ConfigOption<Boolean> TEST_ENVIRONMENT = new ConfigOption<>(STORAGE_NS,
+            "test-environment", "Weather this production or test environment",
+            ConfigOption.Type.LOCAL, false);
 
 }

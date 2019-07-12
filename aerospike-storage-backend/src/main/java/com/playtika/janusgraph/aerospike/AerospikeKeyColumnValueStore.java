@@ -11,7 +11,6 @@ import com.aerospike.client.cdt.MapOrder;
 import com.aerospike.client.cdt.MapPolicy;
 import com.aerospike.client.cdt.MapReturnType;
 import com.aerospike.client.cdt.MapWriteMode;
-import com.aerospike.client.policy.ScanPolicy;
 import com.aerospike.client.policy.WritePolicy;
 import com.playtika.janusgraph.aerospike.util.AsyncUtil;
 import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
@@ -20,7 +19,6 @@ import org.janusgraph.diskstorage.Entry;
 import org.janusgraph.diskstorage.EntryList;
 import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.diskstorage.StaticBuffer;
-import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.keycolumnvalue.KCVMutation;
 import org.janusgraph.diskstorage.keycolumnvalue.KeyIterator;
 import org.janusgraph.diskstorage.keycolumnvalue.KeyRangeQuery;
@@ -41,7 +39,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import static com.playtika.janusgraph.aerospike.ConfigOptions.ALLOW_SCAN;
 import static com.playtika.janusgraph.aerospike.TransactionalOperations.groupLocksByStoreKeyColumn;
 import static com.playtika.janusgraph.aerospike.TransactionalOperations.mutationToMap;
 import static java.util.Collections.*;
@@ -50,46 +47,45 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
 
     private static Logger logger = LoggerFactory.getLogger(AerospikeKeyColumnValueStore.class);
 
-    private static final MapPolicy mapPolicy = new MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE);
-
-    private static final WritePolicy mutatePolicy = new WritePolicy();
-    private static final ScanPolicy scanPolicy = new ScanPolicy();
-    static {
-        mutatePolicy.respondAllOps = true;
-        mutatePolicy.sendKey = true;
-
-        scanPolicy.includeBinData = true;
-    }
+    static final MapPolicy mapPolicy = new MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE);
 
     static final String ENTRIES_BIN_NAME = "entries";
 
     private final String namespace;
     private final String setName;
     private final String storeName;
-    private final Configuration configuration;
     private final IAerospikeClient client;
     private final ThreadPoolExecutor aerospikeExecutor;
     private final Executor scanExecutor;
     private final LockOperations lockOperations;
     private final WriteAheadLogManager writeAheadLogManager;
+    private final AerospikePolicyProvider aerospikePolicyProvider;
+
+    private final WritePolicy mutatePolicy;
+    private final WritePolicy deletePolicy;
+    private final WritePolicy operateGetPolicy;
 
     AerospikeKeyColumnValueStore(String namespace,
                                  String graphPrefix,
                                  String storeName,
                                  IAerospikeClient client,
-                                 Configuration configuration,
                                  LockOperations lockOperations,
                                  ThreadPoolExecutor aerospikeExecutor, Executor scanExecutor,
-                                 WriteAheadLogManager writeAheadLogManager) {
+                                 WriteAheadLogManager writeAheadLogManager,
+                                 AerospikePolicyProvider aerospikePolicyProvider) {
         this.namespace = namespace;
         this.aerospikeExecutor = aerospikeExecutor;
         this.setName = graphPrefix + "." + storeName;
         this.storeName = storeName;
         this.client = client;
-        this.configuration = configuration;
         this.scanExecutor = scanExecutor;
         this.lockOperations = lockOperations;
         this.writeAheadLogManager = writeAheadLogManager;
+
+        this.aerospikePolicyProvider = aerospikePolicyProvider;
+        this.mutatePolicy = buildMutationPolicy(aerospikePolicyProvider);
+        this.deletePolicy = aerospikePolicyProvider.deletePolicy();
+        this.operateGetPolicy = aerospikePolicyProvider.writePolicy();
     }
 
     @Override // This method is only supported by stores which keep keys in byte-order.
@@ -102,15 +98,11 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
      */
     @Override // This method is only supported by stores which do not keep keys in byte-order.
     public KeyIterator getKeys(SliceQuery query, StoreTransaction txh) {
-        if(!configuration.get(ALLOW_SCAN)){
-            throw new UnsupportedOperationException();
-        }
-
         AerospikeKeyIterator keyIterator = new AerospikeKeyIterator(query);
 
         scanExecutor.execute(() -> {
             try {
-                client.scanAll(scanPolicy, namespace, setName, keyIterator);
+                client.scanAll(aerospikePolicyProvider.scanPolicy(), namespace, setName, keyIterator);
             } finally {
                 keyIterator.terminate();
             }
@@ -134,7 +126,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) throws BackendException {
 
         try {
-            Record record = client.operate(null, getKey(query.getKey()),
+            Record record = client.operate(operateGetPolicy, getKey(query.getKey()),
                     MapOperation.getByKeyRange(ENTRIES_BIN_NAME,
                             getValue(query.getSliceStart()), getValue(query.getSliceEnd()), MapReturnType.KEY_VALUE)
             );
@@ -234,7 +226,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
         if(entriesNoOperationIndex != -1){
             long entriesNoAfterMutation = (Long)record.getList(ENTRIES_BIN_NAME).get(entriesNoOperationIndex);
             if(entriesNoAfterMutation == 0){
-                client.delete(null, aerospikeKey);
+                client.delete(deletePolicy, aerospikeKey);
             }
         }
     }
@@ -267,6 +259,12 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     @Override
     public String getName() {
         return storeName;
+    }
+
+    static WritePolicy buildMutationPolicy(AerospikePolicyProvider policyProvider){
+        WritePolicy mutatePolicy = new WritePolicy(policyProvider.writePolicy());
+        mutatePolicy.respondAllOps = true;
+        return mutatePolicy;
     }
 
 }
