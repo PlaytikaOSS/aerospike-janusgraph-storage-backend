@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENTRIES_BIN_NAME;
 import static com.playtika.janusgraph.aerospike.LockOperations.LockType.LOCKED;
@@ -82,14 +83,14 @@ class LockOperations {
 
         Map<Key, LockType> keysLocked = new ConcurrentHashMap<>();
         List<CompletableFuture<?>> futures = new ArrayList<>();
-        AtomicBoolean alreadyLocked = new AtomicBoolean(false);
+        AtomicReference<AerospikeException> alreadyLockedError = new AtomicReference<>();
 
         try {
             for (Map.Entry<String, Map<Value, Map<Value, Value>>> locksForStore : locksByStore.entrySet()) {
                 String storeName = locksForStore.getKey();
                 for (Value key : locksForStore.getValue().keySet()) {
                     futures.add(runAsync(() -> {
-                        if (alreadyLocked.get()) {
+                        if (alreadyLockedError.get() != null) {
                             return;
                         }
                         Key lockKey = getLockKey(storeName, key);
@@ -102,7 +103,7 @@ class LockOperations {
                             }
                         } catch (AerospikeException e) {
                             if (e.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
-                                alreadyLocked.set(true);
+                                alreadyLockedError.set(e);
                                 logger.info("already locked key: {}, txId:{}", lockKey, transactionId);
                             } else {
                                 throw e;
@@ -114,8 +115,8 @@ class LockOperations {
 
             completeAll(futures);
 
-            if (alreadyLocked.get()) {
-                throw new TemporaryLockingException("Some locks not released yet");
+            if (alreadyLockedError.get() != null) {
+                throw new TemporaryLockingException("Some locks not released yet", alreadyLockedError.get());
             }
         } catch (Throwable t) {
             releaseLocks(keysLocked.keySet());
@@ -140,10 +141,7 @@ class LockOperations {
                 //check for same transaction
                 if (e.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
                     Record record = client.get(null, lockKey);
-                    Value transactionIdLocked = Value.get(record.getValue(TRANSACTION_BIN_NAME));
-                    if(transactionId.equals(transactionIdLocked)){
-                        return SAME_TRANSACTION;
-                    }
+                    if (checkTransaction(record, transactionId)) return SAME_TRANSACTION;
                 }
                 throw e;
             }
@@ -153,24 +151,45 @@ class LockOperations {
         }
     }
 
+    private boolean checkTransaction(Record record, Value transactionId) {
+        Value transactionIdLocked = Value.get(record.getValue(TRANSACTION_BIN_NAME));
+        return transactionId.equals(transactionIdLocked);
+    }
+
+    public List<Key> filterKeysLockedByTransaction(Collection<Key> keys, Value transactionId){
+        List<Key> keysFiltered = new ArrayList<>(keys.size());
+        Key[] keysArray = keys.toArray(new Key[0]);
+        Record[] records = client.get(null, keysArray);
+        for(int i = 0, m = keysArray.length; i < m; i++){
+            Record record = records[i];
+            if(record != null && checkTransaction(record, transactionId)){
+                keysFiltered.add(keysArray[i]);
+            }
+        }
+        return keysFiltered;
+    }
+
     void releaseLocks(Collection<Key> keys) throws BackendException {
         List<CompletableFuture<?>> futures = new ArrayList<>(keys.size());
         for(Key lockKey : keys){
-            futures.add(runAsync(() -> client.delete(null, lockKey)));
+            futures.add(runAsync(() -> client.delete(null, lockKey), aerospikeExecutor));
         }
         completeAll(futures);
     }
 
     void releaseLocks(Map<String, Map<Value, Map<Value, Value>>> locksByStore) throws BackendException {
-        List<CompletableFuture<?>> futures = new ArrayList<>();
+        releaseLocks(getLockKeys(locksByStore));
+    }
+
+    public List<Key> getLockKeys(Map<String, Map<Value, Map<Value, Value>>> locksByStore){
+        List<Key> keys = new ArrayList<>();
         for (Map.Entry<String, Map<Value, Map<Value, Value>>> locksForStore : locksByStore.entrySet()) {
             String storeName = locksForStore.getKey();
             for (Value key : locksForStore.getValue().keySet()) {
-                Key lockKey = getLockKey(storeName, key);
-                futures.add(runAsync(() -> client.delete(null, lockKey)));
+                keys.add(getLockKey(storeName, key));
             }
         }
-        completeAll(futures);
+        return keys;
     }
 
     private void checkExpectedValues(final Map<String, Map<Value, Map<Value, Value>>> locksByStore,
@@ -191,7 +210,7 @@ class LockOperations {
                     if(!checkColumnValues(getKey(storeName, locksForKey.getKey()), locksForKey.getValue())){
                         checkFailed.set(true);
                     }
-                }));
+                }, aerospikeExecutor));
             }
         }
 

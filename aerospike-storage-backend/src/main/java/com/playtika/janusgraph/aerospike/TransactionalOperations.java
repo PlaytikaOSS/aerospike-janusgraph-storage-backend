@@ -68,7 +68,9 @@ public class TransactionalOperations {
     }
 
     public void releaseLocksAndDeleteWalTransaction(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Value transactionId) throws BackendException {
-        lockOperations.releaseLocks(locksByStore);
+        List<Key> lockKeys = lockOperations.getLockKeys(locksByStore);
+        List<Key> transactionLockKeys = lockOperations.filterKeysLockedByTransaction(lockKeys, transactionId);
+        lockOperations.releaseLocks(transactionLockKeys);
         deleteWalTransaction(transactionId);
     }
 

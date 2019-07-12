@@ -99,11 +99,12 @@ public class WriteAheadLogCompleter {
                             logger.info("Successfully complete transaction id={}", transaction.transactionId);
                         }
                         //this is expected behaviour that may have place in case of transaction was interrupted:
-                        // - on 'release locks' stage then transaction will fail and just need to release hanged locks
+                        // - on 'release locks' stage then transaction completion will fail and just need to release hanged locks
                         // - on 'delete wal transaction' stage and just need to remove transaction
                         catch (PermanentLockingException be) {
                             logger.info("Failed to complete transaction id={} as it's already completed", transaction.transactionId, be);
-                            transactionalOperations.releaseLocksAndDeleteWalTransaction(transaction.locks, transaction.transactionId);
+                            transactionalOperations.releaseLocksAndDeleteWalTransaction(
+                                    transaction.locks, transaction.transactionId);
                             logger.info("released locks for transaction id={}", transaction.transactionId, be);
                         }
                         //even in case of error need to move to the next one
