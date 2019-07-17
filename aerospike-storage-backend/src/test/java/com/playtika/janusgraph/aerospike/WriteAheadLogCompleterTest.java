@@ -92,6 +92,12 @@ public class WriteAheadLogCompleterTest {
             }});
         }};
 
+        try {
+            Thread.sleep(1);
+        } catch (InterruptedException e) {
+            throw new RuntimeException();
+        }
+
         walManager.writeTransaction(locks, mutations);
     }
 
