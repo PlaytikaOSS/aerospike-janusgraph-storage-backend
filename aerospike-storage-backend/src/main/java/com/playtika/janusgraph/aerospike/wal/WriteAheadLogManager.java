@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -132,11 +133,12 @@ public class WriteAheadLogManager {
                     wrapMap((Map<String, Map<byte[], Map<byte[], byte[]>>>)record.getMap(LOCKS_BIN)),
                     wrapMap((Map<String, Map<byte[], Map<byte[], byte[]>>>)record.getMap(MUTATIONS_BIN))));
         });
+        Collections.sort(staleTransactions);
 
         return staleTransactions;
     }
 
-    static final class WalTransaction{
+    static final class WalTransaction implements Comparable<WalTransaction>{
         final Value transactionId;
         final long timestamp;
         final Map<String, Map<Value, Map<Value, Value>>> locks;
@@ -149,6 +151,11 @@ public class WriteAheadLogManager {
             this.timestamp = timestamp;
             this.locks = locks;
             this.mutations = mutations;
+        }
+
+        @Override
+        public int compareTo(WriteAheadLogManager.WalTransaction transaction) {
+            return Long.compare(timestamp, transaction.timestamp);
         }
     }
 
