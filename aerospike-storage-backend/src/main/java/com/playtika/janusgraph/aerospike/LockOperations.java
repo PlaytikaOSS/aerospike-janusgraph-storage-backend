@@ -267,7 +267,7 @@ class LockOperations {
     }
 
     private boolean checkValue(Key key, Value column, Value expectedValue, byte[] actualValue) {
-        if(expectedValue.equals(Value.get(actualValue))){
+        if(expectedValue.equals(Value.get(actualValue, 0, actualValue != null ? actualValue.length : 0))){
             return true;
         } else {
             logger.info("Unexpected value for key {}, column {}, expected {}, actual {}", key, column, expectedValue, actualValue);

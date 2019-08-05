@@ -232,7 +232,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     }
 
     private Key getKey(StaticBuffer staticBuffer) {
-        return new Key(namespace, setName, staticBuffer.getBytes(0, staticBuffer.length()));
+        return getKey(getValue(staticBuffer));
     }
 
     private Key getKey(Value value) {
@@ -240,7 +240,7 @@ public class AerospikeKeyColumnValueStore implements AKeyColumnValueStore {
     }
 
     static Value getValue(StaticBuffer staticBuffer) {
-        return Value.get(staticBuffer.getBytes(0, staticBuffer.length()));
+        return staticBuffer.as((array, offset, limit) -> Value.get(array, offset, limit - offset));
     }
 
     @Override

@@ -37,7 +37,7 @@ public class LockOperationsTest {
     public static final UUID TRANSACTION_ID = UUID.randomUUID();
     public static final Value COLUMN_NAME = Value.get("column_name");
     public static final Value COLUMN_NAME_2 = Value.get("column_name_2");
-    public static final Value COLUMN_VALUE = Value.get(new byte[]{1, 2, 3});
+    public static final Value COLUMN_VALUE = Value.get(new byte[]{1, 2, 3}, 0, 3);
 
     private AerospikeClient client = new AerospikeClient(null, container.getContainerIpAddress(),
             container.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
