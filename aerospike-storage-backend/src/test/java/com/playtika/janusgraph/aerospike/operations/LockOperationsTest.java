@@ -1,10 +1,11 @@
-package com.playtika.janusgraph.aerospike;
+package com.playtika.janusgraph.aerospike.operations;
 
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Key;
 import com.aerospike.client.Value;
 import com.aerospike.client.cdt.MapOperation;
 import com.aerospike.client.cdt.MapPolicy;
+import com.playtika.janusgraph.aerospike.TestAerospikePolicyProvider;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.locking.PermanentLockingException;
 import org.janusgraph.diskstorage.locking.TemporaryLockingException;
@@ -19,10 +20,11 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 
-import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENTRIES_BIN_NAME;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
-import static com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager.getBytesFromUUID;
+import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
+import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
+import static com.playtika.janusgraph.aerospike.transaction.WriteAheadLogManagerBasic.getBytesFromUUID;
 import static java.util.Collections.singletonMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.fail;
@@ -37,13 +39,14 @@ public class LockOperationsTest {
     public static final UUID TRANSACTION_ID = UUID.randomUUID();
     public static final Value COLUMN_NAME = Value.get("column_name");
     public static final Value COLUMN_NAME_2 = Value.get("column_name_2");
-    public static final Value COLUMN_VALUE = Value.get(new byte[]{1, 2, 3}, 0, 3);
+    public static final Value COLUMN_VALUE = Value.get(new byte[]{1, 2, 3});
 
     private AerospikeClient client = new AerospikeClient(null, container.getContainerIpAddress(),
             container.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
 
-    private LockOperations lockOperations = new LockOperations(client, AEROSPIKE_PROPERTIES.getNamespace(), "test",
-            Executors.newSingleThreadExecutor(), new TestAerospikePolicyProvider());
+    private LockOperations lockOperations = new BasicLockOperations(
+            new AerospikeOperations("test", AEROSPIKE_PROPERTIES.getNamespace(), client,
+                    new TestAerospikePolicyProvider(), Executors.newSingleThreadExecutor()));
 
     @Before
     public void clear() {
@@ -143,6 +146,7 @@ public class LockOperationsTest {
 
     private Set<Key> execute(UUID transactionId, Map<Value, Value> expectedValues) throws BackendException {
         return lockOperations.acquireLocks(Value.get(getBytesFromUUID(transactionId)),
-                singletonMap("test", singletonMap(Value.get("test_key"), expectedValues)), true);
+                singletonMap("test", singletonMap(Value.get("test_key"), expectedValues)), true,
+                keyLockTypeMap -> lockOperations.releaseLocks(keyLockTypeMap.keySet()));
     }
 }

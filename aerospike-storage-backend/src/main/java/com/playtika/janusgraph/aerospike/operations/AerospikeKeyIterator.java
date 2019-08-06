@@ -1,4 +1,4 @@
-package com.playtika.janusgraph.aerospike;
+package com.playtika.janusgraph.aerospike.operations;
 
 import com.aerospike.client.AerospikeException;
 import com.aerospike.client.Key;
@@ -20,7 +20,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.ENTRIES_BIN_NAME;
+import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
 
 /**
  * Should be used for test purposes only

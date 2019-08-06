@@ -1,7 +1,10 @@
-package com.playtika.janusgraph.aerospike;
+package com.playtika.janusgraph.aerospike.transaction;
 
 import com.aerospike.client.Value;
-import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
+import com.playtika.janusgraph.aerospike.operations.BasicOperations;
+import com.playtika.janusgraph.aerospike.operations.LockOperations;
+import com.playtika.janusgraph.aerospike.operations.MutateOperations;
+import com.playtika.janusgraph.aerospike.operations.Operations;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
@@ -11,20 +14,20 @@ import org.testcontainers.containers.GenericContainer;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD;
+import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.*;
 
 public class WriteAheadLogCompleterTest {
 
-    public static final byte[] COLUMN_1 = {0};
-    public static final byte[] COLUMN_2 = {1};
+    public static final Value COLUMN_1 = Value.get(new byte[]{0});
+    public static final Value COLUMN_2 = Value.get(new byte[]{1});
     public static final String STORE_NAME = "storeName";
     public static final long STALE_THRESHOLD = 1000L;
 
@@ -37,21 +40,21 @@ public class WriteAheadLogCompleterTest {
     public void shouldCompleteStaleTransactions() throws InterruptedException, BackendException {
         ModifiableConfiguration configuration = getAerospikeConfiguration(container)
                 .set(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD, STALE_THRESHOLD);
-        AerospikeStoreManager storeManager = new AerospikeStoreManager(configuration);
-        storeManager.getWriteAheadLogCompleter().shutdown();
-        writeTransactions(storeManager.getWriteAheadLogManager());
-        storeManager.close();
+        Operations operations = new BasicOperations(configuration);
+        writeTransactions(operations.getTransactionalOperations().getWriteAheadLogManager());
+        operations.close();
         Thread.sleep(STALE_THRESHOLD * 3);
 
-        SpyAerospikeStoreManager spyStoreManager = new SpyAerospikeStoreManager(configuration);
-        WriteAheadLogManager walManager = spyStoreManager.getWriteAheadLogManager();
+        SpyOperations spyOperations = new SpyOperations(configuration);
+        spyOperations.getWriteAheadLogCompleter().start();
+        WriteAheadLogManager walManager = spyOperations.getTransactionalOperations().getWriteAheadLogManager();
         while(!walManager.getStaleTransactions().isEmpty()){
             Thread.sleep(100);
         }
-        spyStoreManager.close();
+        spyOperations.close();
 
-        verify(spyStoreManager.spy, times(4)).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
-        verify(spyStoreManager.spy).releaseLocksAndDeleteWalTransaction(any(), any());
+        verify(spyOperations.spy, times(4)).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
+        verify(spyOperations.spy).releaseLocksAndDeleteWalTransactionOnError(any(), any());
     }
 
     private void writeTransactions(WriteAheadLogManager walManager){
@@ -76,8 +79,8 @@ public class WriteAheadLogCompleterTest {
             put(STORE_NAME, new HashMap<Value, Map<Value, Value>>() {{
                 put(key,
                         new HashMap<Value, Value>() {{
-                            put(Value.get(COLUMN_1), expectedValue1);
-                            put(Value.get(COLUMN_2), expectedValue2);
+                            put(COLUMN_1, expectedValue1);
+                            put(COLUMN_2, expectedValue2);
                         }});
             }});
         }};
@@ -86,8 +89,8 @@ public class WriteAheadLogCompleterTest {
             put(STORE_NAME, new HashMap<Value, Map<Value, Value>>() {{
                 put(key,
                         new HashMap<Value, Value>() {{
-                            put(Value.get(COLUMN_1), resultValue1);
-                            put(Value.get(COLUMN_2), resultValue2);
+                            put(COLUMN_1, resultValue1);
+                            put(COLUMN_2, resultValue2);
                         }});
             }});
         }};
@@ -101,20 +104,19 @@ public class WriteAheadLogCompleterTest {
         walManager.writeTransaction(locks, mutations);
     }
 
-    private static class SpyAerospikeStoreManager extends AerospikeStoreManager{
+    private static class SpyOperations extends BasicOperations{
 
         TransactionalOperations spy;
 
-        public SpyAerospikeStoreManager(Configuration configuration) {
+        public SpyOperations(Configuration configuration) {
             super(configuration);
         }
 
-        @Override
-        TransactionalOperations initTransactionalOperations(Function<String, AKeyColumnValueStore> databaseFactory,
-                                                            WriteAheadLogManager writeAheadLogManager,
-                                                            LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
-            spy = spy(new TransactionalOperations(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor));
-            return spy;
+        protected TransactionalOperations initWalCompleterTransactionalOperations(
+                Supplier<WriteAheadLogManager> writeAheadLogManager,
+                Supplier<LockOperations> lockOperations,
+                Supplier<MutateOperations> mutateOperations){
+            return spy = spy(new TransactionalOperations(writeAheadLogManager.get(), lockOperations.get(), mutateOperations.get()));
         }
     }
 

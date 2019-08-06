@@ -1,15 +1,12 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.AerospikeException;
-import com.aerospike.client.Host;
-import com.aerospike.client.IAerospikeClient;
-import com.aerospike.client.policy.ClientPolicy;
+import com.aerospike.client.Value;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
-import com.playtika.janusgraph.aerospike.wal.WriteAheadLogCompleter;
-import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
+import com.playtika.janusgraph.aerospike.operations.AerospikeOperations;
+import com.playtika.janusgraph.aerospike.operations.BasicOperations;
+import com.playtika.janusgraph.aerospike.operations.Operations;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
 import org.janusgraph.diskstorage.PermanentBackendException;
@@ -26,46 +23,25 @@ import org.janusgraph.diskstorage.keycolumnvalue.StoreFeatures;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.janusgraph.graphdb.configuration.PreInitializeConfigOptions;
 
-import java.time.Clock;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Stream;
 
-import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
+import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.mutationToMap;
+import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
-import static com.playtika.janusgraph.aerospike.util.AsyncUtil.shutdownAndAwaitTermination;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
 
 
 @PreInitializeConfigOptions
 public class AerospikeStoreManager extends AbstractStoreManager implements KeyColumnValueStoreManager {
 
-    private static final int DEFAULT_PORT = 3000;
     public static final int AEROSPIKE_BUFFER_SIZE = Integer.MAX_VALUE / 2;
-    public static final String JANUS_AEROSPIKE_THREAD_GROUP_NAME = "janus-aerospike";
 
     private final StoreFeatures features;
 
-    private final IAerospikeClient client;
-
-    private final String namespace;
-
-    private final LockOperations lockOperations;
-    private final TransactionalOperations transactionalOperations;
-
-    private final WriteAheadLogManager writeAheadLogManager;
-    private final WriteAheadLogCompleter writeAheadLogCompleter;
-
-    private final ThreadPoolExecutor scanExecutor;
-
-    private final ThreadPoolExecutor aerospikeExecutor;
-    private final String graphPrefix;
-    private final AerospikePolicyProvider aerospikePolicyProvider;
+    private final Operations operations;
 
     public AerospikeStoreManager(Configuration configuration) {
         super(configuration);
@@ -73,45 +49,15 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         Preconditions.checkArgument(configuration.get(BUFFER_SIZE) == AEROSPIKE_BUFFER_SIZE,
                 "Set unlimited buffer size as we use deferred locking approach");
 
-        client = buildAerospikeClient(configuration);
-
-        this.namespace = configuration.get(NAMESPACE);
-        this.graphPrefix = configuration.get(GRAPH_PREFIX);
-
         features = features(configuration);
 
-        String walNamespace = configuration.get(WAL_NAMESPACE);
-        Long staleTransactionLifetimeThresholdInMs = configuration.get(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD);
-        String walSetName = graphPrefix + ".wal";
+        operations = initOperations(configuration);
 
-        scanExecutor = new ThreadPoolExecutor(0, configuration.get(SCAN_PARALLELISM),
-                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
-                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "scan"));
-
-        aerospikeExecutor = new ThreadPoolExecutor(4, configuration.get(AEROSPIKE_PARALLELISM),
-                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
-                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "main"));
-
-        aerospikePolicyProvider = buildPolicyProvider(configuration);
-
-        lockOperations = new LockOperations(client, namespace, graphPrefix, aerospikeExecutor, aerospikePolicyProvider);
-
-        writeAheadLogManager = new WriteAheadLogManager(client, walNamespace, walSetName,
-                getClock(), staleTransactionLifetimeThresholdInMs, aerospikePolicyProvider);
-
-        transactionalOperations = initTransactionalOperations(this::openDatabase, writeAheadLogManager,
-                lockOperations, aerospikeExecutor);
-
-        writeAheadLogCompleter = new WriteAheadLogCompleter(client, walNamespace, walSetName,
-                writeAheadLogManager, staleTransactionLifetimeThresholdInMs, transactionalOperations);
-
-        writeAheadLogCompleter.start();
+        operations.getWriteAheadLogCompleter().start();
     }
 
-    TransactionalOperations initTransactionalOperations(Function<String, AKeyColumnValueStore> databaseFactory,
-                                                        WriteAheadLogManager writeAheadLogManager,
-                                                        LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
-        return new TransactionalOperations(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
+    protected BasicOperations initOperations(Configuration configuration) {
+        return new BasicOperations(configuration);
     }
 
     private StandardStoreFeatures features(Configuration configuration) {
@@ -137,44 +83,17 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 .build();
     }
 
-    Clock getClock() {
-        return Clock.systemUTC();
-    }
-
-    private IAerospikeClient buildAerospikeClient(Configuration configuration){
-        int port = storageConfig.has(STORAGE_PORT) ? storageConfig.get(STORAGE_PORT) : DEFAULT_PORT;
-
-        Host[] hosts = Stream.of(configuration.get(STORAGE_HOSTS))
-                .map(hostname -> new Host(hostname, port)).toArray(Host[]::new);
-
-        ClientPolicy clientPolicy = buildClientPolicy();
-
-        return new AerospikeClient(clientPolicy, hosts);
-    }
-
-    private ClientPolicy buildClientPolicy() {
-        ClientPolicy clientPolicy = new ClientPolicy();
-        clientPolicy.user = storageConfig.has(AUTH_USERNAME) ? storageConfig.get(AUTH_USERNAME) : null;
-        clientPolicy.password = storageConfig.has(AUTH_PASSWORD) ? storageConfig.get(AUTH_PASSWORD) : null;
-        return clientPolicy;
-    }
-
-    private AerospikePolicyProvider buildPolicyProvider(Configuration configuration) {
-        return configuration.get(TEST_ENVIRONMENT) ? new TestAerospikePolicyProvider() : new AerospikePolicyProvider();
-    }
-
     @Override
     public StoreTransaction beginTransaction(final BaseTransactionConfig config) {
         return new AerospikeTransaction(config);
     }
 
     @Override
-    public AKeyColumnValueStore openDatabase(String name) {
+    public KeyColumnValueStore openDatabase(String name) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "Database name may not be null or empty");
 
-        return new AerospikeKeyColumnValueStore(namespace, graphPrefix, name,
-                client, lockOperations, aerospikeExecutor, scanExecutor,
-                writeAheadLogManager, aerospikePolicyProvider);
+        return new AerospikeKeyColumnValueStore(name,
+                operations.getReadOperations(), operations.getTransactionalOperations(), operations.getScanOperations());
     }
 
     @Override
@@ -184,21 +103,36 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     @Override
     public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) throws BackendException {
-        transactionalOperations.mutateManyTransactionally(mutations, txh);
+        Map<String, Map<Value, Map<Value, Value>>> locksByStore = ((AerospikeTransaction) txh).getLocksByStoreKeyColumn();
+
+        Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
+
+        operations.getTransactionalOperations().mutateTransactionally(locksByStore, mutationsByStore);
+    }
+
+    private static Map<String, Map<Value, Map<Value, Value>>> groupMutationsByStoreKeyColumn(
+            Map<String, Map<StaticBuffer, KCVMutation>> mutationsByStore){
+        Map<String, Map<Value, Map<Value, Value>>> mapByStore = new HashMap<>(mutationsByStore.size());
+        for(Map.Entry<String, Map<StaticBuffer, KCVMutation>> storeMutations : mutationsByStore.entrySet()) {
+            Map<Value, Map<Value, Value>> map = new HashMap<>(storeMutations.getValue().size());
+            for (Map.Entry<StaticBuffer, KCVMutation> mutationEntry : storeMutations.getValue().entrySet()) {
+                map.put(getValue(mutationEntry.getKey()), mutationToMap(mutationEntry.getValue()));
+            }
+            mapByStore.put(storeMutations.getKey(), map);
+        }
+        return mapByStore;
     }
 
     @Override
     public void close() {
-        writeAheadLogCompleter.shutdown();
-        shutdownAndAwaitTermination(scanExecutor);
-        shutdownAndAwaitTermination(aerospikeExecutor);
-        client.close();
+        operations.close();
     }
 
     @Override
     public void clearStorage() throws BackendException {
         try {
-            truncateNamespace(client, namespace);
+            AerospikeOperations aerospikeOperations = operations.getAerospikeOperations();
+            truncateNamespace(aerospikeOperations.getClient(), aerospikeOperations.getNamespace());
 
         } catch (AerospikeException e) {
             throw new PermanentBackendException(e);
@@ -210,7 +144,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     @Override
     public boolean exists() throws BackendException {
         try {
-            return !isEmptyNamespace(client, namespace);
+            AerospikeOperations aerospikeOperations = operations.getAerospikeOperations();
+            return !isEmptyNamespace(aerospikeOperations.getClient(), aerospikeOperations.getNamespace());
         } catch (AerospikeException e) {
             throw new PermanentBackendException(e);
         }
@@ -231,12 +166,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         throw new UnsupportedOperationException();
     }
 
-
-    WriteAheadLogManager getWriteAheadLogManager() {
-        return writeAheadLogManager;
+    public Operations getOperations() {
+        return operations;
     }
 
-    public WriteAheadLogCompleter getWriteAheadLogCompleter() {
-        return writeAheadLogCompleter;
-    }
 }

@@ -1,8 +1,5 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.client.Key;
-import com.aerospike.client.Value;
-import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
@@ -15,37 +12,18 @@ import org.janusgraph.core.schema.ConsistencyModifier;
 import org.janusgraph.core.schema.JanusGraphIndex;
 import org.janusgraph.core.schema.JanusGraphManagement;
 import org.janusgraph.diskstorage.BackendException;
-import org.janusgraph.diskstorage.Entry;
-import org.janusgraph.diskstorage.EntryList;
-import org.janusgraph.diskstorage.StaticBuffer;
-import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
-import org.janusgraph.diskstorage.keycolumnvalue.KeyIterator;
-import org.janusgraph.diskstorage.keycolumnvalue.KeyRangeQuery;
-import org.janusgraph.diskstorage.keycolumnvalue.KeySliceQuery;
-import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
-import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.*;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD;
+import static com.playtika.janusgraph.aerospike.FlakingAerospikeStoreManager.*;
 import static org.apache.tinkerpop.gremlin.structure.Direction.IN;
 import static org.apache.tinkerpop.gremlin.structure.Direction.OUT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,16 +48,35 @@ public class GraphConsistencyAfterFailureTest {
     public static final long STALE_TRANSACTION_THRESHOLD = 1000L;
 
     @Test
-    public void shouldBecameConsistentAfterFailure() throws InterruptedException, BackendException {
-        for(int i = 0; i < 20; i++) {
+    public void shouldBecameConsistentAfterAcquireLockFailed() throws InterruptedException {
+        shouldBecameConsistentAfterFailure(() -> failsAcquire.set(true));
+    }
+
+    @Test
+    public void shouldBecameConsistentAfterReleaseLockFailed() throws InterruptedException {
+        shouldBecameConsistentAfterFailure(() -> failsUnlock.set(true));
+    }
+
+    @Test
+    public void shouldBecameConsistentAfterMutateFailed() throws InterruptedException {
+        shouldBecameConsistentAfterFailure(() -> failsMutate.set(true));
+    }
+
+    @Test
+    public void shouldBecameConsistentAfterDeleteTransactionFailed() throws InterruptedException {
+        shouldBecameConsistentAfterFailure(() -> failsDeleteTransaction.set(true));
+    }
+
+    private void shouldBecameConsistentAfterFailure(Runnable breaker) throws InterruptedException {
+        for(int i = 0; i < 10; i++) {
             deleteAllRecords(container);
 
+            fixAll();
             JanusGraph graph = openGraph();
 
-            fails.set(false);
             defineSchema(graph);
 
-            fails.set(true);
+            breaker.run();
             time.set(0L);
             boolean failed = false;
             try {
@@ -91,7 +88,7 @@ public class GraphConsistencyAfterFailureTest {
             }
 
             if(failed) {
-                fails.set(false);
+                fixAll();
                 time.set(STALE_TRANSACTION_THRESHOLD + 1);
                 //wait for WriteAheadLogCompleter had fixed graph
                 Thread.sleep(STALE_TRANSACTION_THRESHOLD * 2);
@@ -112,7 +109,6 @@ public class GraphConsistencyAfterFailureTest {
         ModifiableConfiguration config = getAerospikeConfiguration(container);
         config.set(STORAGE_BACKEND, FlakingAerospikeStoreManager.class.getName());
         config.set(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD, STALE_TRANSACTION_THRESHOLD);
-
         return JanusGraphFactory.open(config);
     }
 
@@ -171,140 +167,6 @@ public class GraphConsistencyAfterFailureTest {
             query = query.has((String)objects[i], objects[i + 1]);
         }
         return query.vertices().iterator();
-    }
-
-    private static final AtomicBoolean fails = new AtomicBoolean(false);
-    private static final Random random = new Random();
-    private static final AtomicLong time = new AtomicLong(0);
-
-    public static class FlakingAerospikeStoreManager extends AerospikeStoreManager {
-
-        public FlakingAerospikeStoreManager(Configuration configuration) {
-            super(configuration);
-        }
-
-        @Override
-        protected Clock getClock(){
-            return new FixedClock(time);
-        }
-
-        @Override
-        public AKeyColumnValueStore openDatabase(String name) {
-            AKeyColumnValueStore client = super.openDatabase(name);
-
-            return new FlakingKCVStore(client);
-        }
-
-        @Override
-        TransactionalOperations initTransactionalOperations(Function<String, AKeyColumnValueStore> databaseFactory,
-                                                            WriteAheadLogManager writeAheadLogManager,
-                                                            LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
-            return new FlakingTransactionalOperation(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
-        }
-    }
-
-    private static class FlakingTransactionalOperation extends TransactionalOperations {
-
-        public FlakingTransactionalOperation(Function<String, AKeyColumnValueStore> databaseFactory, WriteAheadLogManager writeAheadLogManager, LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
-            super(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
-        }
-
-        @Override
-        void releaseLocks(Set<Key> keysLocked) throws BackendException {
-            if(!fails.get()){
-                super.releaseLocks(keysLocked);
-            }
-        }
-
-        @Override
-        void deleteWalTransaction(Value transactionId) {
-            if(!fails.get()){
-                super.deleteWalTransaction(transactionId);
-            }
-        }
-    }
-
-    private static class FlakingKCVStore implements AKeyColumnValueStore {
-
-        private final AKeyColumnValueStore keyColumnValueStore;
-
-        private FlakingKCVStore(AKeyColumnValueStore keyColumnValueStore) {
-            this.keyColumnValueStore = keyColumnValueStore;
-        }
-
-        @Override
-        public void mutate(Value key, Map<Value, Value> mutation){
-            if(fails.get() && random.nextBoolean()){
-                logger.error("Failed flaking");
-                throw new RuntimeException();
-            }
-            keyColumnValueStore.mutate(key, mutation);
-        }
-
-        @Override
-        public void mutate(StaticBuffer key, List<Entry> additions, List<StaticBuffer> deletions, StoreTransaction txh) throws BackendException {
-            keyColumnValueStore.mutate(key, additions, deletions, txh);
-        }
-
-
-        @Override
-        public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) throws BackendException {
-            return keyColumnValueStore.getSlice(query, txh);
-        }
-
-        @Override
-        public Map<StaticBuffer, EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
-            return keyColumnValueStore.getSlice(keys, query, txh);
-        }
-
-        @Override
-        public void acquireLock(StaticBuffer key, StaticBuffer column, StaticBuffer expectedValue, StoreTransaction txh) throws BackendException {
-            keyColumnValueStore.acquireLock(key, column, expectedValue, txh);
-        }
-
-        @Override
-        public KeyIterator getKeys(KeyRangeQuery query, StoreTransaction txh) throws BackendException {
-            return keyColumnValueStore.getKeys(query, txh);
-        }
-
-        @Override
-        public KeyIterator getKeys(SliceQuery query, StoreTransaction txh) throws BackendException {
-            return keyColumnValueStore.getKeys(query, txh);
-        }
-
-        @Override
-        public String getName() {
-            return keyColumnValueStore.getName();
-        }
-
-        @Override
-        public void close() throws BackendException {
-            keyColumnValueStore.close();
-        }
-    }
-
-    private static class FixedClock extends Clock{
-        private final AtomicLong time;
-
-        private FixedClock(AtomicLong time) {
-            this.time = time;
-        }
-
-
-        @Override
-        public ZoneId getZone() {
-            return null;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return null;
-        }
-
-        @Override
-        public Instant instant() {
-            return Instant.ofEpochMilli(time.get());
-        }
     }
 
 }

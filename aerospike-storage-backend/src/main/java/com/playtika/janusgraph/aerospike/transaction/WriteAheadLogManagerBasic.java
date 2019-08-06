@@ -1,4 +1,4 @@
-package com.playtika.janusgraph.aerospike.wal;
+package com.playtika.janusgraph.aerospike.transaction;
 
 import com.aerospike.client.AerospikeException;
 import com.aerospike.client.Bin;
@@ -30,9 +30,9 @@ import java.util.UUID;
  * Used to write transactions into WAL storage
  * so failed transaction can be completed eventually by {@link WriteAheadLogCompleter}
  */
-public class WriteAheadLogManager {
+public class WriteAheadLogManagerBasic implements WriteAheadLogManager {
 
-    private static Logger logger = LoggerFactory.getLogger(WriteAheadLogManager.class);
+    private static Logger logger = LoggerFactory.getLogger(WriteAheadLogManagerBasic.class);
 
     private static final String UUID_BIN = "uuid";
     private static final String TIMESTAMP_BIN = "timestamp";
@@ -48,15 +48,14 @@ public class WriteAheadLogManager {
     private WritePolicy writePolicy;
     private WritePolicy deletePolicy;
 
-    public WriteAheadLogManager(IAerospikeClient client, String walNamespace, String walSetName,
-                                Clock clock, long staleTransactionLifetimeThresholdInMs,
-                                AerospikePolicyProvider aerospikePolicyProvider) {
-        this.client = client;
-        this.walNamespace = walNamespace;
-        this.walSetName = walSetName;
+    public WriteAheadLogManagerBasic(WalOperations walOperations, Clock clock) {
+        this.client = walOperations.getAerospikeOperations().getClient();
+        this.walNamespace = walOperations.getWalNamespace();
+        this.walSetName = walOperations.getWalSetName();
         this.secondaryIndexName = walSetName;
         this.clock = clock;
-        this.staleTransactionLifetimeThresholdInMs = staleTransactionLifetimeThresholdInMs;
+        this.staleTransactionLifetimeThresholdInMs = walOperations.getStaleTransactionLifetimeThresholdInMs();
+        AerospikePolicyProvider aerospikePolicyProvider = walOperations.getAerospikeOperations().getAerospikePolicyProvider();
         this.writePolicy = new WritePolicy(aerospikePolicyProvider.writePolicy());
         this.writePolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
 
@@ -74,6 +73,7 @@ public class WriteAheadLogManager {
         }
     }
 
+    @Override
     public Value writeTransaction(Map<String, Map<Value, Map<Value, Value>>> locks,
                                   Map<String, Map<Value, Map<Value, Value>>> mutations){
 
@@ -95,6 +95,7 @@ public class WriteAheadLogManager {
         return transactionId;
     }
 
+    @Override
     public void deleteTransaction(Value transactionId) {
         client.delete(deletePolicy, new Key(walNamespace, walSetName, transactionId));
     }
@@ -115,6 +116,7 @@ public class WriteAheadLogManager {
         return bb.array();
     }
 
+    @Override
     public List<WalTransaction> getStaleTransactions(){
 
         Statement statement = new Statement();
@@ -136,27 +138,6 @@ public class WriteAheadLogManager {
         Collections.sort(staleTransactions);
 
         return staleTransactions;
-    }
-
-    static final class WalTransaction implements Comparable<WalTransaction>{
-        final Value transactionId;
-        final long timestamp;
-        final Map<String, Map<Value, Map<Value, Value>>> locks;
-        final Map<String, Map<Value, Map<Value, Value>>> mutations;
-
-        WalTransaction(Value transactionId, long timestamp,
-                       Map<String, Map<Value, Map<Value, Value>>> locks,
-                       Map<String, Map<Value, Map<Value, Value>>> mutations) {
-            this.transactionId = transactionId;
-            this.timestamp = timestamp;
-            this.locks = locks;
-            this.mutations = mutations;
-        }
-
-        @Override
-        public int compareTo(WriteAheadLogManager.WalTransaction transaction) {
-            return Long.compare(timestamp, transaction.timestamp);
-        }
     }
 
     private static Map<String, Map<Value, Map<Value, Value>>> wrapMap(

@@ -1,8 +1,5 @@
 package com.playtika.janusgraph.aerospike;
 
-import com.aerospike.client.Key;
-import com.aerospike.client.Value;
-import com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
@@ -14,8 +11,6 @@ import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.schema.ConsistencyModifier;
 import org.janusgraph.core.schema.JanusGraphIndex;
 import org.janusgraph.core.schema.JanusGraphManagement;
-import org.janusgraph.diskstorage.BackendException;
-import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -23,20 +18,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Iterator;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.*;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD;
+import static com.playtika.janusgraph.aerospike.FlakingAerospikeStoreManager.*;
 import static org.apache.tinkerpop.gremlin.structure.Direction.IN;
 import static org.apache.tinkerpop.gremlin.structure.Direction.OUT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,16 +47,16 @@ public class LocksGetReleasedAfterFailureTest {
     public static final long STALE_TRANSACTION_THRESHOLD = 1000L;
 
     @Test
-    public void shouldBecameConsistentAfterLocksNotReleased() throws InterruptedException, BackendException {
+    public void shouldBecameConsistentAfterLocksNotReleased() throws InterruptedException {
         for(int i = 0; i < 20; i++) {
             deleteAllRecords(container);
 
-            JanusGraph graph = openGraph();
+            fixAll();
 
-            fails.set(false);
+            JanusGraph graph = openGraph();
             defineSchema(graph);
 
-            fails.set(true);
+            failsUnlock.set(true);
             time.set(0L);
             boolean failed = false;
             try {
@@ -82,7 +68,7 @@ public class LocksGetReleasedAfterFailureTest {
             }
 
             if(failed) {
-                fails.set(false);
+                fixAll();
                 time.set(STALE_TRANSACTION_THRESHOLD + 1);
                 //wait for WriteAheadLogCompleter had fixed graph
                 Thread.sleep(STALE_TRANSACTION_THRESHOLD * 2);
@@ -162,85 +148,6 @@ public class LocksGetReleasedAfterFailureTest {
             query = query.has((String)objects[i], objects[i + 1]);
         }
         return query.vertices().iterator();
-    }
-
-    private static final AtomicBoolean fails = new AtomicBoolean(false);
-    private static final Random random = new Random();
-    private static final AtomicLong time = new AtomicLong(0);
-
-    public static class FlakingAerospikeStoreManager extends AerospikeStoreManager {
-
-        public FlakingAerospikeStoreManager(Configuration configuration) {
-            super(configuration);
-        }
-
-        @Override
-        protected Clock getClock(){
-            return new FixedClock(time);
-        }
-
-        @Override
-        public AKeyColumnValueStore openDatabase(String name) {
-            return super.openDatabase(name);
-        }
-
-        @Override
-        TransactionalOperations initTransactionalOperations(Function<String, AKeyColumnValueStore> databaseFactory,
-                                                            WriteAheadLogManager writeAheadLogManager,
-                                                            LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
-            return new FlakingTransactionalOperation(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
-        }
-    }
-
-    private static class FlakingTransactionalOperation extends TransactionalOperations {
-
-        public FlakingTransactionalOperation(Function<String, AKeyColumnValueStore> databaseFactory, WriteAheadLogManager writeAheadLogManager, LockOperations lockOperations, ThreadPoolExecutor aerospikeExecutor) {
-            super(databaseFactory, writeAheadLogManager, lockOperations, aerospikeExecutor);
-        }
-
-        @Override
-        void releaseLocks(Set<Key> keysLocked) throws BackendException {
-            if(fails.get()){
-                super.releaseLocks(keysLocked.stream()
-                        .limit(random.nextInt(keysLocked.size()))
-                        .collect(Collectors.toSet()));
-                logger.error("Failed flaking");
-                throw new RuntimeException();
-            } else {
-                super.releaseLocks(keysLocked);
-            }
-        }
-
-        @Override
-        void deleteWalTransaction(Value transactionId) {
-            if(!fails.get()){
-                super.deleteWalTransaction(transactionId);
-            }
-        }
-    }
-
-    private static class FixedClock extends Clock{
-        private final AtomicLong time;
-
-        private FixedClock(AtomicLong time) {
-            this.time = time;
-        }
-
-
-        @Override
-        public ZoneId getZone() {
-            return null;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return null;
-        }
-
-        @Override
-        public Instant instant() {
-            return Instant.ofEpochMilli(time.get());
-        }
     }
 
 }
