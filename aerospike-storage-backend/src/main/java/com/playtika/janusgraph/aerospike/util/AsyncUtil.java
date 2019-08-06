@@ -19,16 +19,13 @@ import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 public class AsyncUtil {
 
-    public static final int INITIAL_WAIT_TIMEOUT_IN_SECONDS = 1;
-    public static final int WAIT_TIMEOUT_IN_SECONDS = 5;
+    public static final int WAIT_TIMEOUT_IN_SECONDS = 4;
 
-    private static Logger logger = LoggerFactory.getLogger(AsyncUtil.class);
-
-    public static void completeAll(List<CompletableFuture<?>> futures) throws PermanentBackendException {
+    public static void completeAll(List<CompletableFuture<?>> futures) {
         try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
         } catch (InterruptedException | ExecutionException e) {
-            throw new PermanentBackendException(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -50,23 +47,5 @@ public class AsyncUtil {
             throw new PermanentBackendException(e);
         }
         return resultMap;
-    }
-
-    public static void shutdownAndAwaitTermination(ExecutorService pool) {
-        pool.shutdown(); // Disable new tasks from being submitted
-        try {
-            // Wait a while for existing tasks to terminate
-            if (!pool.awaitTermination(INITIAL_WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS)) {
-                pool.shutdownNow(); // Cancel currently executing tasks
-                // Wait a while for tasks to respond to being cancelled
-                if (!pool.awaitTermination(WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS))
-                    logger.error("Pool [{}] did not terminate", pool);
-            }
-        } catch (InterruptedException ie) {
-            // (Re-)Cancel if current thread also interrupted
-            pool.shutdownNow();
-            // Preserve interrupt status
-            Thread.currentThread().interrupt();
-        }
     }
 }

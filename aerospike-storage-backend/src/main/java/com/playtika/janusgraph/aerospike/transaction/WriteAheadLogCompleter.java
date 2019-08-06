@@ -1,4 +1,4 @@
-package com.playtika.janusgraph.aerospike.wal;
+package com.playtika.janusgraph.aerospike.transaction;
 
 import com.aerospike.client.AerospikeException;
 import com.aerospike.client.Bin;
@@ -8,7 +8,6 @@ import com.aerospike.client.ResultCode;
 import com.aerospike.client.Value;
 import com.aerospike.client.policy.RecordExistsAction;
 import com.aerospike.client.policy.WritePolicy;
-import com.playtika.janusgraph.aerospike.TransactionalOperations;
 import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.locking.PermanentLockingException;
@@ -23,9 +22,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.JANUS_AEROSPIKE_THREAD_GROUP_NAME;
-import static com.playtika.janusgraph.aerospike.util.AsyncUtil.shutdownAndAwaitTermination;
-import static com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager.getBytesFromUUID;
+import static com.google.common.util.concurrent.MoreExecutors.shutdownAndAwaitTermination;
+import static com.playtika.janusgraph.aerospike.operations.BasicOperations.JANUS_AEROSPIKE_THREAD_GROUP_NAME;
+import static com.playtika.janusgraph.aerospike.transaction.WriteAheadLogManagerBasic.getBytesFromUUID;
+import static com.playtika.janusgraph.aerospike.util.AsyncUtil.WAIT_TIMEOUT_IN_SECONDS;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 /**
@@ -52,21 +52,18 @@ public class WriteAheadLogCompleter {
             new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "wal")
     );
 
-    public WriteAheadLogCompleter(IAerospikeClient aerospikeClient, String walNamespace, String walSetName,
-                           WriteAheadLogManager writeAheadLogManager, long periodInMs,
-                           TransactionalOperations transactionalOperations){
-
-        this.client = aerospikeClient;
-        this.writeAheadLogManager = writeAheadLogManager;
+    public WriteAheadLogCompleter(WalOperations walOperations, TransactionalOperations transactionalOperations){
+        this.client = walOperations.getAerospikeOperations().getClient();
+        this.writeAheadLogManager = transactionalOperations.getWriteAheadLogManager();
         this.transactionalOperations = transactionalOperations;
 
-        this.putLockPolicy = buildPutLockPolicy(periodInMs);
+        this.putLockPolicy = buildPutLockPolicy(walOperations.getStaleTransactionLifetimeThresholdInMs());
 
         this.exclusiveLockBin = new Bin("EL", getBytesFromUUID(UUID.randomUUID()));
 
         //set period to by slightly longer then expiration
         this.periodInMs = Duration.ofSeconds(putLockPolicy.expiration + 1).toMillis();
-        exclusiveLockKey = new Key(walNamespace, walSetName, EXCLUSIVE_LOCK_KEY);
+        exclusiveLockKey = new Key(walOperations.getWalNamespace(), walOperations.getWalSetName(), EXCLUSIVE_LOCK_KEY);
     }
 
     public void start(){
@@ -76,15 +73,15 @@ public class WriteAheadLogCompleter {
     }
 
     public void shutdown(){
-        shutdownAndAwaitTermination(scheduledExecutorService);
+        shutdownAndAwaitTermination(scheduledExecutorService, WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
     }
 
     private void completeHangedTransactions() {
         try {
             if(acquireExclusiveLock()){
-                List<WriteAheadLogManager.WalTransaction> staleTransactions = writeAheadLogManager.getStaleTransactions();
+                List<WriteAheadLogManagerBasic.WalTransaction> staleTransactions = writeAheadLogManager.getStaleTransactions();
                 logger.info("Got {} stale transactions", staleTransactions.size());
-                for(WriteAheadLogManager.WalTransaction transaction : staleTransactions){
+                for(WriteAheadLogManagerBasic.WalTransaction transaction : staleTransactions){
                     if(Thread.currentThread().isInterrupted()){
                         logger.info("WAL execution was interrupted");
                         break;
@@ -103,7 +100,7 @@ public class WriteAheadLogCompleter {
                         // - on 'delete wal transaction' stage and just need to remove transaction
                         catch (PermanentLockingException be) {
                             logger.info("Failed to complete transaction id={} as it's already completed", transaction.transactionId, be);
-                            transactionalOperations.releaseLocksAndDeleteWalTransaction(
+                            transactionalOperations.releaseLocksAndDeleteWalTransactionOnError(
                                     transaction.locks, transaction.transactionId);
                             logger.info("released locks for transaction id={}", transaction.transactionId, be);
                         }

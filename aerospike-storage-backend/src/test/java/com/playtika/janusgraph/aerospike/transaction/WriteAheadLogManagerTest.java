@@ -1,8 +1,10 @@
-package com.playtika.janusgraph.aerospike.wal;
+package com.playtika.janusgraph.aerospike.transaction;
 
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Value;
-import com.playtika.janusgraph.aerospike.TestAerospikePolicyProvider;
+import com.playtika.janusgraph.aerospike.ConfigOptions;
+import com.playtika.janusgraph.aerospike.operations.BasicOperations;
+import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -14,9 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
-import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
-import static com.playtika.janusgraph.aerospike.wal.WriteAheadLogManager.toBytes;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.*;
+import static com.playtika.janusgraph.aerospike.transaction.WriteAheadLogManagerBasic.toBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -33,8 +34,17 @@ public class WriteAheadLogManagerTest {
     static final String WAL_SET_NAME = "wal";
 
     private Clock clock = mock(Clock.class);
-    private WriteAheadLogManager walManager = new WriteAheadLogManager(
-            client, WAL_NAMESPACE, WAL_SET_NAME, clock, 1000, new TestAerospikePolicyProvider());
+
+    private ModifiableConfiguration configuration = getAerospikeConfiguration(container)
+            .set(ConfigOptions.WAL_NAMESPACE, AEROSPIKE_PROPERTIES.getNamespace())
+            .set(ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD, 1000L);
+
+    private BasicOperations basicOperations = new BasicOperations(configuration) {
+        @Override
+        protected  Clock getClock() {
+            return clock;
+        }
+    };
 
     @Before
     public void setUp() {
@@ -43,8 +53,7 @@ public class WriteAheadLogManagerTest {
 
     @Test
     public void shouldNotFailIfIndexAlreadyCreated(){
-        new WriteAheadLogManager(client, WAL_NAMESPACE, WAL_SET_NAME, clock, 1000,
-                new TestAerospikePolicyProvider());
+        new BasicOperations(configuration);
     }
 
     @Test
@@ -69,13 +78,14 @@ public class WriteAheadLogManagerTest {
             }});
         }};
 
+        WriteAheadLogManager walManager = basicOperations.getTransactionalOperations().getWriteAheadLogManager();
         Value transactionId = walManager.writeTransaction(locks, mutations);
 
         when(clock.millis()).thenReturn(500L);
         walManager.writeTransaction(locks, mutations);
 
         when(clock.millis()).thenReturn(1100L);
-        List<WriteAheadLogManager.WalTransaction> transactionList = walManager.getStaleTransactions();
+        List<WriteAheadLogManagerBasic.WalTransaction> transactionList = walManager.getStaleTransactions();
         assertThat(transactionList).hasSize(1);
 
         assertThat(equals(transactionList.get(0).transactionId, transactionId));
