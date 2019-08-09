@@ -20,6 +20,7 @@ import java.util.function.Supplier;
 
 import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeClient;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.GRAPH_NAME;
 
 public class BasicOperations implements Operations {
 
@@ -41,19 +42,19 @@ public class BasicOperations implements Operations {
 
     public BasicOperations(Configuration configuration) {
         this.configuration = configuration;
-        this.aerospikePolicyProvider = initPolicyProvider(configuration);
-        this.aerospikeOperations = initAerospikeOperations(configuration, aerospikePolicyProvider);
-        this.walOperations = initWalOperations(configuration, aerospikeOperations);
-        this.writeAheadLogManager = initWriteAheadLogManager(walOperations, getClock());
-        this.lockOperations = initLockOperations(aerospikeOperations);
-        this.mutateOperations = initMutateOperations(aerospikeOperations);
-        this.transactionalOperations = initTransactionalOperations(
+        this.aerospikePolicyProvider = buildPolicyProvider(configuration);
+        this.aerospikeOperations = buildAerospikeOperations(configuration, aerospikePolicyProvider);
+        this.walOperations = buildWalOperations(configuration, aerospikeOperations);
+        this.writeAheadLogManager = buildWriteAheadLogManager(walOperations, getClock());
+        this.lockOperations = buildLockOperations(aerospikeOperations);
+        this.mutateOperations = buildMutateOperations(aerospikeOperations);
+        this.transactionalOperations = buildTransactionalOperations(
                 () -> writeAheadLogManager, () -> lockOperations, () -> mutateOperations);
         this.writeAheadLogCompleter = buildWriteAheadLogCompleter(walOperations,
                 () -> writeAheadLogManager, () -> lockOperations, () -> mutateOperations);
 
-        this.readOperations = initReadOperations(aerospikeOperations);
-        this.scanOperations = initScanOperations(configuration, aerospikeOperations);
+        this.readOperations = buildReadOperations(aerospikeOperations);
+        this.scanOperations = buildScanOperations(configuration, aerospikeOperations);
     }
 
     @Override
@@ -81,11 +82,11 @@ public class BasicOperations implements Operations {
         return scanOperations;
     }
 
-    protected AerospikePolicyProvider initPolicyProvider(Configuration configuration){
+    protected AerospikePolicyProvider buildPolicyProvider(Configuration configuration){
         return configuration.get(TEST_ENVIRONMENT) ? new TestAerospikePolicyProvider() : new AerospikePolicyProvider();
     }
 
-    protected AerospikeOperations initAerospikeOperations(Configuration configuration, AerospikePolicyProvider aerospikePolicyProvider) {
+    protected AerospikeOperations buildAerospikeOperations(Configuration configuration, AerospikePolicyProvider aerospikePolicyProvider) {
         ExecutorService aerospikeExecutor = new ThreadPoolExecutor(4, configuration.get(AEROSPIKE_PARALLELISM),
                 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
                 new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "main"));
@@ -99,7 +100,7 @@ public class BasicOperations implements Operations {
                 aerospikePolicyProvider, aerospikeExecutor);
     }
 
-    protected WalOperations initWalOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
+    protected WalOperations buildWalOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
         return new WalOperations(configuration, aerospikeOperations);
     }
 
@@ -107,22 +108,22 @@ public class BasicOperations implements Operations {
         return Clock.systemUTC();
     }
 
-    protected TransactionalOperations initTransactionalOperations(
+    protected TransactionalOperations buildTransactionalOperations(
             Supplier<WriteAheadLogManager> writeAheadLogManager,
             Supplier<LockOperations> lockOperations,
             Supplier<MutateOperations> mutateOperations){
         return new TransactionalOperations(writeAheadLogManager.get(), lockOperations.get(), mutateOperations.get());
     }
 
-    protected MutateOperations initMutateOperations(AerospikeOperations aerospikeOperations) {
+    protected MutateOperations buildMutateOperations(AerospikeOperations aerospikeOperations) {
         return new BasicMutateOperations(aerospikeOperations);
     }
 
-    protected LockOperations initLockOperations(AerospikeOperations aerospikeOperations) {
+    protected LockOperations buildLockOperations(AerospikeOperations aerospikeOperations) {
         return new BasicLockOperations(aerospikeOperations);
     }
 
-    protected WriteAheadLogManager initWriteAheadLogManager(WalOperations walOperations, Clock clock) {
+    protected WriteAheadLogManager buildWriteAheadLogManager(WalOperations walOperations, Clock clock) {
         return new WriteAheadLogManagerBasic(walOperations, clock);
     }
 
@@ -133,21 +134,21 @@ public class BasicOperations implements Operations {
             Supplier<MutateOperations> mutateOperations){
         return new WriteAheadLogCompleter(
                 walOperations,
-                initWalCompleterTransactionalOperations(writeAheadLogManager, lockOperations, mutateOperations));
+                buildWalCompleterTransactionalOperations(writeAheadLogManager, lockOperations, mutateOperations));
     }
 
-    protected TransactionalOperations initWalCompleterTransactionalOperations(
+    protected TransactionalOperations buildWalCompleterTransactionalOperations(
             Supplier<WriteAheadLogManager> writeAheadLogManager,
             Supplier<LockOperations> lockOperations,
             Supplier<MutateOperations> mutateOperations){
         return new TransactionalOperations(writeAheadLogManager.get(), lockOperations.get(), mutateOperations.get());
     }
 
-    protected ReadOperations initReadOperations(AerospikeOperations aerospikeOperations) {
+    protected ReadOperations buildReadOperations(AerospikeOperations aerospikeOperations) {
         return new ReadOperations(aerospikeOperations);
     }
 
-    protected ScanOperations initScanOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
+    protected ScanOperations buildScanOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
         ExecutorService scanExecutor = new ThreadPoolExecutor(0, configuration.get(SCAN_PARALLELISM),
                 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
                 new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "scan"));

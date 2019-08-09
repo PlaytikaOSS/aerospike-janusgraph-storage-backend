@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.mutationToMap;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
@@ -53,7 +54,9 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
         operations = initOperations(configuration);
 
-        operations.getWriteAheadLogCompleter().start();
+        if(configuration.get(START_WAL_COMPLETER)) {
+            operations.getWriteAheadLogCompleter().start();
+        }
     }
 
     protected BasicOperations initOperations(Configuration configuration) {

@@ -18,7 +18,6 @@ import java.util.stream.Stream;
 import static com.google.common.util.concurrent.MoreExecutors.shutdownAndAwaitTermination;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.WAIT_TIMEOUT_IN_SECONDS;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.AUTH_PASSWORD;
 
 public class AerospikeOperations {
 
