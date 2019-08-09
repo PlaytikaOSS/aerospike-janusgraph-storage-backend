@@ -53,11 +53,11 @@ public class FlakingAerospikeStoreManager extends AerospikeStoreManager {
             super(configuration);
         }
 
-        protected TransactionalOperations initTransactionalOperations(
+        protected TransactionalOperations buildTransactionalOperations(
                 Supplier<WriteAheadLogManager> writeAheadLogManager,
                 Supplier<LockOperations> lockOperations,
                 Supplier<MutateOperations> mutateOperations){
-            return super.initTransactionalOperations(
+            return super.buildTransactionalOperations(
                     () -> new FlakingWriteAheadLogManager(writeAheadLogManager.get(), failsDeleteTransaction),
                     () -> new FlakingLockOperations(lockOperations.get(), failsUnlock, failsAcquire),
                     () -> new FlakingMutateOperations(mutateOperations.get(), failsMutate)

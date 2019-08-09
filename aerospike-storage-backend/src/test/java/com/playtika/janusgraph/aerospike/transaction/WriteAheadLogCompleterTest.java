@@ -5,6 +5,7 @@ import com.playtika.janusgraph.aerospike.operations.BasicOperations;
 import com.playtika.janusgraph.aerospike.operations.LockOperations;
 import com.playtika.janusgraph.aerospike.operations.MutateOperations;
 import com.playtika.janusgraph.aerospike.operations.Operations;
+import org.awaitility.Duration;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
@@ -19,7 +20,7 @@ import java.util.function.Supplier;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD;
-import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
+import static org.awaitility.Awaitility.waitAtMost;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.*;
@@ -48,13 +49,31 @@ public class WriteAheadLogCompleterTest {
         SpyOperations spyOperations = new SpyOperations(configuration);
         spyOperations.getWriteAheadLogCompleter().start();
         WriteAheadLogManager walManager = spyOperations.getTransactionalOperations().getWriteAheadLogManager();
-        while(!walManager.getStaleTransactions().isEmpty()){
-            Thread.sleep(100);
-        }
+        waitAtMost(Duration.FIVE_SECONDS)
+                .until(() -> walManager.getStaleTransactions().isEmpty());
         spyOperations.close();
 
-        verify(spyOperations.spy, times(4)).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
-        verify(spyOperations.spy).releaseLocksAndDeleteWalTransactionOnError(any(), any());
+        verify(spyOperations.transactionalOperationsSpy, times(4)).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
+        verify(spyOperations.transactionalOperationsSpy).releaseLocksAndDeleteWalTransactionOnError(any(), any());
+    }
+
+    @Test
+    public void shouldNotCompleteStaleTransactionsIfSuspended() throws InterruptedException, BackendException {
+        ModifiableConfiguration configuration = getAerospikeConfiguration(container)
+                .set(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD, STALE_THRESHOLD);
+        Operations operations = new BasicOperations(configuration);
+        writeTransactions(operations.getTransactionalOperations().getWriteAheadLogManager());
+        operations.close();
+        Thread.sleep(STALE_THRESHOLD * 3);
+
+        SpyOperations spyOperations = new SpyOperations(configuration);
+        spyOperations.getWriteAheadLogCompleter().suspend();
+        spyOperations.getWriteAheadLogCompleter().start();
+
+        Thread.sleep(500);
+        spyOperations.close();
+
+        verify(spyOperations.transactionalOperationsSpy, never()).processAndDeleteTransaction(any(), any(), any(), anyBoolean());;
     }
 
     private void writeTransactions(WriteAheadLogManager walManager){
@@ -106,17 +125,19 @@ public class WriteAheadLogCompleterTest {
 
     private static class SpyOperations extends BasicOperations{
 
-        TransactionalOperations spy;
+        TransactionalOperations transactionalOperationsSpy;
 
         public SpyOperations(Configuration configuration) {
             super(configuration);
         }
 
-        protected TransactionalOperations initWalCompleterTransactionalOperations(
+        @Override
+        protected TransactionalOperations buildWalCompleterTransactionalOperations(
                 Supplier<WriteAheadLogManager> writeAheadLogManager,
                 Supplier<LockOperations> lockOperations,
                 Supplier<MutateOperations> mutateOperations){
-            return spy = spy(new TransactionalOperations(writeAheadLogManager.get(), lockOperations.get(), mutateOperations.get()));
+            return transactionalOperationsSpy = spy(
+                    super.buildWalCompleterTransactionalOperations(writeAheadLogManager, lockOperations, mutateOperations));
         }
     }
 

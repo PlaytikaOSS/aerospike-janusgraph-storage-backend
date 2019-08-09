@@ -34,4 +34,10 @@ public class ConfigOptions {
             "test-environment", "Weather this production or test environment",
             ConfigOption.Type.LOCAL, false);
 
+    public static final ConfigOption<Boolean> START_WAL_COMPLETER = new ConfigOption<>(STORAGE_NS,
+            "start-wal-completer", "Whether WAL Completer should be started inside store manager. " +
+            "You should not start WAL Completer in passive data center. " +
+            "You may consider to start WAL Completer externally than you will be able to suspend and resume it manually",
+            ConfigOption.Type.LOCAL, true);
+
 }

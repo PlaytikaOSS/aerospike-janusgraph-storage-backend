@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.util.concurrent.MoreExecutors.shutdownAndAwaitTermination;
 import static com.playtika.janusgraph.aerospike.operations.BasicOperations.JANUS_AEROSPIKE_THREAD_GROUP_NAME;
@@ -47,6 +48,7 @@ public class WriteAheadLogCompleter {
     private final Key exclusiveLockKey;
     private final Bin exclusiveLockBin;
     private int generation = 0;
+    private AtomicBoolean suspended = new AtomicBoolean(false);
 
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "wal")
@@ -76,12 +78,36 @@ public class WriteAheadLogCompleter {
         shutdownAndAwaitTermination(scheduledExecutorService, WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
     }
 
+    /**
+     * You should call it when the data center had been switched into the passive mode
+     */
+    public void suspend(){
+        this.suspended.set(true);
+    }
+
+    /**
+     * You should call it when the data center had been switched into the active mode
+     */
+    public void resume(){
+        this.suspended.set(false);
+    }
+
     private void completeHangedTransactions() {
+
+        if(suspended.get()){
+            logger.info("WAL execution was suspended");
+            return;
+        }
+
         try {
             if(acquireExclusiveLock()){
                 List<WriteAheadLogManagerBasic.WalTransaction> staleTransactions = writeAheadLogManager.getStaleTransactions();
                 logger.info("Got {} stale transactions", staleTransactions.size());
                 for(WriteAheadLogManagerBasic.WalTransaction transaction : staleTransactions){
+                    if(suspended.get()){
+                        logger.info("WAL execution was suspended");
+                        break;
+                    }
                     if(Thread.currentThread().isInterrupted()){
                         logger.info("WAL execution was interrupted");
                         break;
