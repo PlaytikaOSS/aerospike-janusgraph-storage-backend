@@ -85,6 +85,10 @@ public class WriteAheadLogCompleter {
         this.suspended.set(true);
     }
 
+    public boolean isSuspended(){
+        return this.suspended.get();
+    }
+
     /**
      * You should call it when the data center had been switched into the active mode
      */
