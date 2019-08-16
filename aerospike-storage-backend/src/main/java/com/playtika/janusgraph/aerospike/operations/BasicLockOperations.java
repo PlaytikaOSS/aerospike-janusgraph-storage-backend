@@ -104,12 +104,12 @@ public class BasicLockOperations implements LockOperations {
                             keysLocked.put(lockKey, lockType);
 
                             if (logger.isTraceEnabled()) {
-                                logger.trace("acquired lock key: {}, txId:{}", lockKey, transactionId);
+                                logger.trace("acquired lock key=[{}], txId=[{}]", lockKey, transactionId);
                             }
                         } catch (AerospikeException e) {
                             if (e.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
                                 alreadyLockedError.set(e);
-                                logger.info("already locked key: {}, txId:{}", lockKey, transactionId);
+                                logger.info("already locked key=[{}], txId=[{}]", lockKey, transactionId);
                             } else {
                                 throw e;
                             }
@@ -196,7 +196,7 @@ public class BasicLockOperations implements LockOperations {
         completeAll(futures);
     }
 
-    private void checkExpectedValues(final Map<String, Map<Value, Map<Value, Value>>> locksByStore,
+    protected void checkExpectedValues(final Map<String, Map<Value, Map<Value, Value>>> locksByStore,
                                      final Map<Key, LockType> keysLocked) throws PermanentBackendException {
         List<CompletableFuture<?>> futures = new ArrayList<>();
         AtomicBoolean checkFailed = new AtomicBoolean(false);

@@ -41,7 +41,7 @@ public class BasicMutateOperations implements MutateOperations {
     }
 
     @Override
-    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) throws PermanentBackendException {
+    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) {
 
         List<CompletableFuture<?>> mutations = new ArrayList<>();
 

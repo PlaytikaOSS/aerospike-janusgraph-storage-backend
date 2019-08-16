@@ -31,12 +31,11 @@ public class WriteAheadLogManagerTest {
             container.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
 
     static final String WAL_NAMESPACE = AEROSPIKE_PROPERTIES.getNamespace();
-    static final String WAL_SET_NAME = "wal";
 
     private Clock clock = mock(Clock.class);
 
     private ModifiableConfiguration configuration = getAerospikeConfiguration(container)
-            .set(ConfigOptions.WAL_NAMESPACE, AEROSPIKE_PROPERTIES.getNamespace())
+            .set(ConfigOptions.WAL_NAMESPACE, WAL_NAMESPACE)
             .set(ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD, 1000L);
 
     private BasicOperations basicOperations = new BasicOperations(configuration) {

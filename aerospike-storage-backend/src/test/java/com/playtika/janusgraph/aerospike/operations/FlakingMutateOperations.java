@@ -2,16 +2,10 @@ package com.playtika.janusgraph.aerospike.operations;
 
 import com.aerospike.client.Value;
 import org.janusgraph.diskstorage.PermanentBackendException;
-import org.javatuples.Pair;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
-import static com.playtika.janusgraph.aerospike.operations.FlakingUtils.entriesSize;
 import static com.playtika.janusgraph.aerospike.operations.FlakingUtils.selectFlaking;
 
 public class FlakingMutateOperations implements MutateOperations {
@@ -31,10 +25,7 @@ public class FlakingMutateOperations implements MutateOperations {
                     "mutateMany failed flaking in [{}] for key [{}]");
 
             mutateOperations.mutateMany(mutationsByStorePartial);
-
-            if(entriesSize(mutationsByStorePartial) < entriesSize(mutationsByStore)) {
-                throw new RuntimeException();
-            }
+            throw new RuntimeException();
 
         } else {
             mutateOperations.mutateMany(mutationsByStore);

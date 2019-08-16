@@ -12,6 +12,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.playtika.janusgraph.aerospike.operations.FlakingUtils.entriesSize;
+
 public class FlakingUtils {
 
     private static Logger logger = LoggerFactory.getLogger(FlakingLockOperations.class);
@@ -19,6 +21,15 @@ public class FlakingUtils {
     private static final Random random = new Random();
 
     static Set<Key> selectFlaking(Collection<Key> keys, String errorMessage) {
+        Set<Key> selected;
+        do{
+            selected = selectFlakingImpl(keys, errorMessage);
+        } while (selected.size() == keys.size());
+
+        return selected;
+    }
+
+    private static Set<Key> selectFlakingImpl(Collection<Key> keys, String errorMessage) {
         return keys.stream()
                 .filter(key -> {
                     boolean fail = random.nextBoolean();
@@ -31,6 +42,18 @@ public class FlakingUtils {
     }
 
     static Map<String, Map<Value, Map<Value, Value>>> selectFlaking(
+            Map<String, Map<Value, Map<Value, Value>>> mutationsByStore,
+            String errorMessage) {
+        long originalSize = entriesSize(mutationsByStore);
+        Map<String, Map<Value, Map<Value, Value>>> selected;
+        do{
+            selected = selectFlakingImpl(mutationsByStore, errorMessage);
+        } while (entriesSize(selected) == originalSize);
+
+        return selected;
+    }
+
+    private static Map<String, Map<Value, Map<Value, Value>>> selectFlakingImpl(
             Map<String, Map<Value, Map<Value, Value>>> mutationsByStore,
             String errorMessage) {
         return mutationsByStore.entrySet()
