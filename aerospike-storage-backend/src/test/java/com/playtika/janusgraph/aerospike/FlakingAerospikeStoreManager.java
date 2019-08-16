@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 
 public class FlakingAerospikeStoreManager extends AerospikeStoreManager {
 
-    public static final AtomicBoolean failsAcquire = new AtomicBoolean(false);
+    public static final AtomicBoolean failsLock = new AtomicBoolean(false);
     public static final AtomicBoolean failsUnlock = new AtomicBoolean(false);
     public static final AtomicBoolean failsMutate = new AtomicBoolean(false);
     public static final AtomicBoolean failsDeleteTransaction = new AtomicBoolean(false);
@@ -34,17 +34,10 @@ public class FlakingAerospikeStoreManager extends AerospikeStoreManager {
     }
 
     public static void fixAll(){
-        failsAcquire.set(false);
+        failsLock.set(false);
         failsUnlock.set(false);
         failsMutate.set(false);
         failsDeleteTransaction.set(false);
-    }
-
-    public static void breakAll(){
-        failsAcquire.set(true);
-        failsUnlock.set(true);
-        failsMutate.set(true);
-        failsDeleteTransaction.set(true);
     }
 
     private static class FlakingOperations extends BasicOperations {
@@ -53,13 +46,14 @@ public class FlakingAerospikeStoreManager extends AerospikeStoreManager {
             super(configuration);
         }
 
+        @Override
         protected TransactionalOperations buildTransactionalOperations(
                 Supplier<WriteAheadLogManager> writeAheadLogManager,
                 Supplier<LockOperations> lockOperations,
                 Supplier<MutateOperations> mutateOperations){
             return super.buildTransactionalOperations(
                     () -> new FlakingWriteAheadLogManager(writeAheadLogManager.get(), failsDeleteTransaction),
-                    () -> new FlakingLockOperations(lockOperations.get(), failsUnlock, failsAcquire),
+                    () -> new FlakingLockOperations(lockOperations.get(), failsUnlock, failsLock),
                     () -> new FlakingMutateOperations(mutateOperations.get(), failsMutate)
             );
         }

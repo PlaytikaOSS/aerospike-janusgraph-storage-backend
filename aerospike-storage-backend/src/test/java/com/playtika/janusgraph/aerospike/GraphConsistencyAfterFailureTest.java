@@ -11,7 +11,6 @@ import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.schema.ConsistencyModifier;
 import org.janusgraph.core.schema.JanusGraphIndex;
 import org.janusgraph.core.schema.JanusGraphManagement;
-import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -49,7 +48,7 @@ public class GraphConsistencyAfterFailureTest {
 
     @Test
     public void shouldBecameConsistentAfterAcquireLockFailed() throws InterruptedException {
-        shouldBecameConsistentAfterFailure(() -> failsAcquire.set(true));
+        shouldBecameConsistentAfterFailure(() -> failsLock.set(true));
     }
 
     @Test
@@ -72,7 +71,7 @@ public class GraphConsistencyAfterFailureTest {
             deleteAllRecords(container);
 
             fixAll();
-            JanusGraph graph = openGraph();
+            JanusGraph graph = openGraph(container);
 
             defineSchema(graph);
 
@@ -105,14 +104,14 @@ public class GraphConsistencyAfterFailureTest {
 
     }
 
-    protected JanusGraph openGraph() {
+    static JanusGraph openGraph(GenericContainer container) {
         ModifiableConfiguration config = getAerospikeConfiguration(container);
         config.set(STORAGE_BACKEND, FlakingAerospikeStoreManager.class.getName());
         config.set(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD, STALE_TRANSACTION_THRESHOLD);
         return JanusGraphFactory.open(config);
     }
 
-    protected void checkAndCleanGraph(JanusGraph graph) {
+    static void checkAndCleanGraph(JanusGraph graph) {
         JanusGraphTransaction tx = graph.newTransaction();
         Vertex cred1 = queryVertices(tx, CRED_1).next();
         Vertex cred2 = queryVertices(tx, CRED_2).next();
@@ -129,7 +128,7 @@ public class GraphConsistencyAfterFailureTest {
         tx.commit();
     }
 
-    private void buildGraph(JanusGraph graph) {
+    static void buildGraph(JanusGraph graph) {
         JanusGraphTransaction tx = graph.newTransaction();
         JanusGraphVertex prentEvent = tx.addVertex();
         tx.addVertex(CRED_1).addEdge(PLATFORM_IDENTITY_PARENT_EVENT, prentEvent);
@@ -138,7 +137,7 @@ public class GraphConsistencyAfterFailureTest {
         tx.commit();
     }
 
-    private void defineSchema(JanusGraph graph) {
+    static void defineSchema(JanusGraph graph) {
         JanusGraphManagement management = graph.openManagement();
         final PropertyKey credentialType = management.makePropertyKey(CREDENTIAL_TYPE).dataType(String.class).make();
         final PropertyKey credentialValue = management.makePropertyKey(CREDENTIAL_VALUE).dataType(String.class).make();
@@ -161,7 +160,7 @@ public class GraphConsistencyAfterFailureTest {
         management.commit();
     }
 
-    private Iterator<JanusGraphVertex> queryVertices(JanusGraphTransaction tx, Object... objects) {
+    static Iterator<JanusGraphVertex> queryVertices(JanusGraphTransaction tx, Object... objects) {
         JanusGraphQuery<? extends JanusGraphQuery> query = tx.query();
         for(int i = 0; i < objects.length; i = i + 2){
             query = query.has((String)objects[i], objects[i + 1]);

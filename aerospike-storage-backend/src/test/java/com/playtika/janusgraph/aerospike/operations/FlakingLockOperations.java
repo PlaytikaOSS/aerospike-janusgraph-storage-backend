@@ -11,7 +11,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import static com.playtika.janusgraph.aerospike.operations.FlakingUtils.entriesSize;
 import static com.playtika.janusgraph.aerospike.operations.FlakingUtils.selectFlaking;
 
 public class FlakingLockOperations implements LockOperations {
@@ -32,17 +31,14 @@ public class FlakingLockOperations implements LockOperations {
                                  boolean checkTransactionId,
                                  Consumer<Map<Key, LockType>> onErrorCleanup) throws BackendException {
 
-        if(failsRelease.get()) {
+        if(failsAcquire.get()) {
             Map<String, Map<Value, Map<Value, Value>>> partialLocksByStore = selectFlaking(locksByStore,
                     "acquireLocks failed flaking in [{}] for key [{}]");
 
-            Set<Key> keysLocked = lockOperations.acquireLocks(
+            lockOperations.acquireLocks(
                     transactionId, partialLocksByStore, checkTransactionId, onErrorCleanup);
 
-            if (entriesSize(partialLocksByStore) < entriesSize(locksByStore)) {
-                throw new RuntimeException();
-            }
-            return keysLocked;
+            throw new RuntimeException();
         } else {
             return lockOperations.acquireLocks(transactionId, locksByStore, checkTransactionId, onErrorCleanup);
         }
@@ -59,9 +55,7 @@ public class FlakingLockOperations implements LockOperations {
             Set<Key> keysReleased = selectFlaking(keys, "releaseLocks failed flaking for key [{}]");
             lockOperations.releaseLocks(keysReleased);
 
-            if(keysReleased.size() < keys.size()) {
-                throw new RuntimeException();
-            }
+            throw new RuntimeException();
         } else {
             lockOperations.releaseLocks(keys);
         }

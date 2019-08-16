@@ -118,25 +118,25 @@ public class WriteAheadLogCompleter {
                     }
 
                     if(renewExclusiveLock()) {
-                        logger.info("Trying to complete transaction id={}, timestamp={}",
+                        logger.info("Trying to complete transaction txId=[{}], timestamp=[{}]",
                                 transaction.transactionId, transaction.timestamp);
                         try {
                             transactionalOperations.processAndDeleteTransaction(
                                     transaction.transactionId, transaction.locks, transaction.mutations, true);
-                            logger.info("Successfully complete transaction id={}", transaction.transactionId);
+                            logger.info("Successfully complete transaction txId=[{}]", transaction.transactionId);
                         }
                         //this is expected behaviour that may have place in case of transaction was interrupted:
                         // - on 'release locks' stage then transaction completion will fail and just need to release hanged locks
                         // - on 'delete wal transaction' stage and just need to remove transaction
                         catch (PermanentLockingException be) {
-                            logger.info("Failed to complete transaction id={} as it's already completed", transaction.transactionId, be);
+                            logger.info("Failed to complete transaction txId=[{}] as it's already completed", transaction.transactionId, be);
                             transactionalOperations.releaseLocksAndDeleteWalTransactionOnError(
                                     transaction.locks, transaction.transactionId);
-                            logger.info("released locks for transaction id={}", transaction.transactionId, be);
+                            logger.info("released locks for transaction txId=[{}]", transaction.transactionId, be);
                         }
                         //even in case of error need to move to the next one
                         catch (Exception e) {
-                            logger.error("!!! Failed to complete transaction id={}, need to be investigated",
+                            logger.error("!!! Failed to complete transaction txId=[{}], need to be investigated",
                                     transaction.transactionId, e);
                         }
                     }

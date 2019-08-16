@@ -20,7 +20,6 @@ import java.util.function.Supplier;
 
 import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeClient;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.GRAPH_NAME;
 
 public class BasicOperations implements Operations {
 
