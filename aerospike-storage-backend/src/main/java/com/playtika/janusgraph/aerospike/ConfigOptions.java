@@ -18,8 +18,9 @@ public class ConfigOptions {
             ConfigOption.Type.LOCAL, String.class);
 
     public static final ConfigOption<Integer> SCAN_PARALLELISM = new ConfigOption<>(STORAGE_NS,
-            "scan-parallelism", "How many threads may perform scan operations simultaneously",
-            ConfigOption.Type.LOCAL, 1);
+            "scan-parallelism", "How many threads may perform scan operations simultaneously. " +
+                 "Should be greater then zero if you want to enable scan feature",
+            ConfigOption.Type.LOCAL, 0);
 
     public static final ConfigOption<Integer> AEROSPIKE_PARALLELISM = new ConfigOption<>(STORAGE_NS,
             "aerospike-parallelism", "Limits how many parallel calls allowed to aerospike",

@@ -79,7 +79,7 @@ public class AerospikeOperations {
         return graphPrefix;
     }
 
-    public void shutdown(){
+    public void close(){
         shutdownAndAwaitTermination(aerospikeExecutor, WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
         client.close();
     }
