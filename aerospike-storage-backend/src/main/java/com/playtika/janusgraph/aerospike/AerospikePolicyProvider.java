@@ -27,6 +27,9 @@ public class AerospikePolicyProvider {
     }
 
     public ScanPolicy scanPolicy(){
-        throw new UnsupportedOperationException();
+        ScanPolicy scanPolicy = new ScanPolicy();
+        scanPolicy.sendKey = true;
+        scanPolicy.includeBinData = true;
+        return scanPolicy;
     }
 }
