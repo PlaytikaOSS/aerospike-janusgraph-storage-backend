@@ -22,6 +22,8 @@ import org.janusgraph.diskstorage.keycolumnvalue.StandardStoreFeatures;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreFeatures;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.janusgraph.graphdb.configuration.PreInitializeConfigOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.List;
@@ -37,6 +39,8 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BU
 
 @PreInitializeConfigOptions
 public class AerospikeStoreManager extends AbstractStoreManager implements KeyColumnValueStoreManager {
+
+    private static Logger logger = LoggerFactory.getLogger(AerospikeStoreManager.class);
 
     public static final int AEROSPIKE_BUFFER_SIZE = Integer.MAX_VALUE / 2;
 
@@ -106,6 +110,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     @Override
     public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) throws BackendException {
+        logger.trace("mutateMany(tx:{}, {})", txh, mutations);
+
         Map<String, Map<Value, Map<Value, Value>>> locksByStore = ((AerospikeTransaction) txh).getLocksByStoreKeyColumn();
 
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);

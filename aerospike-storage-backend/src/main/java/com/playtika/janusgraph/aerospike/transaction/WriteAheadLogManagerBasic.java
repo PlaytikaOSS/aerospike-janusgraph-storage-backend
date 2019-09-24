@@ -61,6 +61,10 @@ public class WriteAheadLogManagerBasic implements WriteAheadLogManager {
 
         this.deletePolicy = aerospikePolicyProvider.deletePolicy();
 
+        createSecondaryIndexOnTimestamp();
+    }
+
+    private void createSecondaryIndexOnTimestamp() {
         try {
             client.createIndex(null, walNamespace, walSetName, secondaryIndexName, TIMESTAMP_BIN, IndexType.NUMERIC)
                     .waitTillComplete(200, 0);
@@ -87,8 +91,8 @@ public class WriteAheadLogManagerBasic implements WriteAheadLogManager {
                     new Bin(MUTATIONS_BIN, stringMapToValue(mutations)));
         } catch (AerospikeException ae) {
             if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG){
-                logger.error("locks data size: {}", toBytes(stringMapToValue(locks)).length);
-                logger.error("mutations data size: {}", toBytes(stringMapToValue(mutations)).length);
+                logger.error("locks data size: {}", stringMapToValue(locks).estimateSize());
+                logger.error("mutations data size: {}", stringMapToValue(mutations).estimateSize());
             }
             throw ae;
         }

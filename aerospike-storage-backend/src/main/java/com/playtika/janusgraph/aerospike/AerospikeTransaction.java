@@ -46,4 +46,9 @@ final class AerospikeTransaction extends AbstractStoreTransaction {
                                         lock -> lock.expectedValue != null ? getValue(lock.expectedValue) : Value.NULL,
                                         (oldValue, newValue) -> oldValue))));
     }
+
+    @Override
+    public String toString(){
+        return Integer.toHexString(hashCode());
+    }
 }

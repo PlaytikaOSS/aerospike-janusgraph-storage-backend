@@ -57,21 +57,29 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
      */
     @Override // This method is only supported by stores which do not keep keys in byte-order.
     public KeyIterator getKeys(SliceQuery query, StoreTransaction txh) {
+       logger.trace("getKeys({}, tx:{}, {})", storeName, txh, query);
+
        return scanOperations.getKeys(storeName, query, txh);
     }
 
     @Override
     public Map<StaticBuffer,EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
+        logger.trace("getSlice({}, tx:{}, {}, {})", storeName, txh, keys, query);
+
         return readOperations.getSlice(storeName, keys, query, txh);
     }
 
     @Override
     public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) throws BackendException {
+        logger.trace("getSlice({}, tx:{}, {})", storeName, txh, query);
+
         return readOperations.getSlice(storeName, query, txh);
     }
 
     @Override
     public void mutate(StaticBuffer key, List<Entry> additions, List<StaticBuffer> deletions, StoreTransaction txh) throws BackendException {
+        logger.trace("mutate({}, tx:{}, {}, {}, {})", storeName, txh, key, additions, deletions);
+
         AerospikeTransaction transaction = (AerospikeTransaction)txh;
 
         Map<Value, Value> mutationMap = mutationToMap(new KCVMutation(additions, deletions));
@@ -118,9 +126,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         //deferred locking approach
         //just add lock to transaction, actual lock will be acquired at commit phase
         ((AerospikeTransaction)txh).addLock(new AerospikeLock(storeName, key, column, expectedValue));
-        if(logger.isTraceEnabled()){
-            logger.trace("registered lock: {}:{}:{}:{}, tx:{}", storeName, key, column, expectedValue, txh);
-        }
+        logger.trace("registered lock: {}:{}:{}:{}, tx:{}", storeName, key, column, expectedValue, txh);
     }
 
     @Override
