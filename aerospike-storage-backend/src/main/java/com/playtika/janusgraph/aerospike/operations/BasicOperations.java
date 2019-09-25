@@ -52,7 +52,7 @@ public class BasicOperations implements Operations {
         this.writeAheadLogCompleter = buildWriteAheadLogCompleter(walOperations,
                 () -> writeAheadLogManager, () -> lockOperations, () -> mutateOperations);
 
-        this.readOperations = buildReadOperations(aerospikeOperations);
+        this.readOperations = buildReadOperations(configuration, aerospikeOperations);
         this.scanOperations = buildScanOperations(configuration, aerospikeOperations);
     }
 
@@ -143,8 +143,8 @@ public class BasicOperations implements Operations {
         return new TransactionalOperations(writeAheadLogManager.get(), lockOperations.get(), mutateOperations.get());
     }
 
-    protected ReadOperations buildReadOperations(AerospikeOperations aerospikeOperations) {
-        return new ReadOperations(aerospikeOperations);
+    protected ReadOperations buildReadOperations(Configuration configuration, AerospikeOperations aerospikeOperations) {
+        return new ReadOperations(aerospikeOperations, configuration.get(BATCH_READ_THRESHOLD));
     }
 
     protected ScanOperations buildScanOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
