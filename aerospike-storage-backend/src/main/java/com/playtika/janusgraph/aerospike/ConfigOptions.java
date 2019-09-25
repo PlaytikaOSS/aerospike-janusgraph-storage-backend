@@ -41,4 +41,8 @@ public class ConfigOptions {
             "You may consider to start WAL Completer externally than you will be able to suspend and resume it manually",
             ConfigOption.Type.LOCAL, true);
 
+    public static final ConfigOption<Integer> BATCH_READ_THRESHOLD = new ConfigOption<>(STORAGE_NS,
+            "batch-read-threshold", "Number of keys when we should start using batch reads instead of parallel",
+            ConfigOption.Type.LOCAL, 2);
+
 }

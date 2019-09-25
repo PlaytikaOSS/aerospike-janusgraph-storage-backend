@@ -64,7 +64,8 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
     @Override
     public Map<StaticBuffer,EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
-        logger.trace("getSlice({}, tx:{}, {}, {})", storeName, txh, keys, query);
+        logger.trace("getSlice({}, tx:{}, {}, start:{}, end:{})",
+                storeName, txh, keys, query.getSliceStart(), query.getSliceEnd());
 
         return readOperations.getSlice(storeName, keys, query, txh);
     }
