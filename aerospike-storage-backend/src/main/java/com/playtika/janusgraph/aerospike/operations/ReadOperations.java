@@ -8,7 +8,6 @@ import com.aerospike.client.cdt.MapReturnType;
 import com.aerospike.client.policy.WritePolicy;
 import com.playtika.janusgraph.aerospike.util.AsyncUtil;
 import org.janusgraph.diskstorage.BackendException;
-import org.janusgraph.diskstorage.Entry;
 import org.janusgraph.diskstorage.EntryList;
 import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.diskstorage.StaticBuffer;
@@ -25,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
-import java.util.function.Predicate;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
@@ -71,17 +70,12 @@ public class ReadOperations {
             Record record = records[i];
             if(record != null) {
                 SortedMap<?, ?> map = ((SortedMap) record.getMap(ENTRIES_BIN_NAME));
-                resultMap.put(keys.get(i), recordToEntries(map, isInSlice(query), query.getLimit()));
+                resultMap.put(keys.get(i), recordToEntries(map, query.getSliceStart(), query.getSliceEnd(), query.getLimit()));
             } else {
                 resultMap.put(keys.get(i), EntryList.EMPTY_LIST);
             }
         }
         return resultMap;
-    }
-
-    private static Predicate<Entry> isInSlice(SliceQuery query) {
-        return entry -> entry.getColumn().compareTo(query.getSliceStart()) >= 0
-                && entry.getColumn().compareTo(query.getSliceEnd()) < 0;
     }
 
     private Map<StaticBuffer,EntryList> getSliceInParallel(String storeName, List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
@@ -94,14 +88,21 @@ public class ReadOperations {
         }, aerospikeOperations.getAerospikeExecutor());
     }
 
-    private EntryList recordToEntries(Map<?,?> entriesMap, Predicate<? super Entry> entryPredicate, int entriesNo) {
+    private EntryList recordToEntries(Map<?,?> entriesMap, StaticBuffer sliceStart, StaticBuffer sliceEnd, int entriesNo) {
 
         if(entriesMap != null && !entriesMap.isEmpty()){
-            return entriesMap.entrySet().stream()
-                    .map(entry -> StaticArrayEntry.of(
-                            StaticArrayBuffer.of((ByteBuffer) entry.getKey()),
-                            StaticArrayBuffer.of((byte[]) entry.getValue())))
-                    .filter(entryPredicate)
+            TreeMap<StaticBuffer, StaticBuffer> staticBufferSortedMap = entriesMap.entrySet().stream()
+                    .collect(Collectors.toMap(entry -> StaticArrayBuffer.of((ByteBuffer) entry.getKey()),
+                            entry -> StaticArrayBuffer.of((byte[]) entry.getValue()),
+                            (u, v) -> {
+                                throw new IllegalStateException(String.format("Duplicate key %s", u));
+                            },
+                            TreeMap::new));
+
+            return staticBufferSortedMap
+                    .subMap(sliceStart, sliceEnd)
+                    .entrySet().stream()
+                    .map(entry -> StaticArrayEntry.of(entry.getKey(), entry.getValue()))
                     .limit(entriesNo)
                     .collect(Collectors.toCollection(EntryArrayList::new));
         }
