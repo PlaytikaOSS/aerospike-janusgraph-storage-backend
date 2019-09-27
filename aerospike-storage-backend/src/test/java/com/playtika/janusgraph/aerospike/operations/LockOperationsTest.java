@@ -23,7 +23,6 @@ import java.util.concurrent.Executors;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
-import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
 import static com.playtika.janusgraph.aerospike.transaction.WriteAheadLogManagerBasic.getBytesFromUUID;
 import static java.util.Collections.singletonMap;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,7 +45,9 @@ public class LockOperationsTest {
 
     private LockOperations lockOperations = new BasicLockOperations(
             new AerospikeOperations("test", AEROSPIKE_PROPERTIES.getNamespace(), client,
-                    new TestAerospikePolicyProvider(), Executors.newSingleThreadExecutor()));
+                    new TestAerospikePolicyProvider(),
+                    Executors.newCachedThreadPool(),
+                    Executors.newCachedThreadPool()));
 
     @Before
     public void clear() {
