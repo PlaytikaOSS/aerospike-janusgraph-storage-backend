@@ -16,9 +16,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static com.google.common.util.concurrent.MoreExecutors.shutdownAndAwaitTermination;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.WAIT_TIMEOUT_IN_SECONDS;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_HOSTS;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_PORT;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 
 public class AerospikeOperations {
 
@@ -92,11 +92,16 @@ public class AerospikeOperations {
         client.close();
     }
 
-    public static IAerospikeClient buildAerospikeClient(Configuration configuration, ClientPolicy clientPolicy) {
+    public static IAerospikeClient buildAerospikeClient(Configuration configuration){
         int port = configuration.has(STORAGE_PORT) ? configuration.get(STORAGE_PORT) : DEFAULT_PORT;
 
         Host[] hosts = Stream.of(configuration.get(STORAGE_HOSTS))
                 .map(hostname -> new Host(hostname, port)).toArray(Host[]::new);
+
+        ClientPolicy clientPolicy = new ClientPolicy();
+        clientPolicy.user = configuration.has(AUTH_USERNAME) ? configuration.get(AUTH_USERNAME) : null;
+        clientPolicy.password = configuration.has(AUTH_PASSWORD) ? configuration.get(AUTH_PASSWORD) : null;
+        clientPolicy.maxConnsPerNode = configuration.get(AEROSPIKE_CONNECTIONS_PER_NODE);
 
         return new AerospikeClient(clientPolicy, hosts);
     }
