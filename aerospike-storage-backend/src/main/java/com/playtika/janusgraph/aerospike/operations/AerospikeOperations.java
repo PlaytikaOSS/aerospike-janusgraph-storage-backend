@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static com.google.common.util.concurrent.MoreExecutors.shutdownAndAwaitTermination;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.WAIT_TIMEOUT_IN_SECONDS;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 
@@ -30,17 +31,20 @@ public class AerospikeOperations {
     private final IAerospikeClient client;
 
     private final ExecutorService aerospikeExecutor;
+    private final ExecutorService aerospikeGetExecutor;
     private final AerospikePolicyProvider aerospikePolicyProvider;
 
     public AerospikeOperations(String graphPrefix, String namespace,
                                IAerospikeClient client,
                                AerospikePolicyProvider aerospikePolicyProvider,
-                               ExecutorService aerospikeExecutor) {
+                               ExecutorService aerospikeExecutor,
+                               ExecutorService aerospikeGetExecutor) {
         this.graphPrefix = graphPrefix+".";
         this.namespace = namespace;
         this.client = client;
         this.aerospikePolicyProvider = aerospikePolicyProvider;
         this.aerospikeExecutor = aerospikeExecutor;
+        this.aerospikeGetExecutor = aerospikeGetExecutor;
     }
 
     public IAerospikeClient getClient() {
@@ -71,6 +75,10 @@ public class AerospikeOperations {
         return aerospikeExecutor;
     }
 
+    public ExecutorService getAerospikeGetExecutor() {
+        return aerospikeGetExecutor;
+    }
+
     public AerospikePolicyProvider getAerospikePolicyProvider() {
         return aerospikePolicyProvider;
     }
@@ -93,6 +101,7 @@ public class AerospikeOperations {
         ClientPolicy clientPolicy = new ClientPolicy();
         clientPolicy.user = configuration.has(AUTH_USERNAME) ? configuration.get(AUTH_USERNAME) : null;
         clientPolicy.password = configuration.has(AUTH_PASSWORD) ? configuration.get(AUTH_PASSWORD) : null;
+        clientPolicy.maxConnsPerNode = configuration.get(AEROSPIKE_CONNECTIONS_PER_NODE);
 
         return new AerospikeClient(clientPolicy, hosts);
     }

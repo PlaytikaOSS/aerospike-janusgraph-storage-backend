@@ -86,17 +86,23 @@ public class BasicOperations implements Operations {
     }
 
     protected AerospikeOperations buildAerospikeOperations(Configuration configuration, AerospikePolicyProvider aerospikePolicyProvider) {
-        ExecutorService aerospikeExecutor = new ThreadPoolExecutor(4, configuration.get(AEROSPIKE_PARALLELISM),
-                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
-                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "main"));
-
         String namespace = configuration.get(NAMESPACE);
         String graphPrefix = configuration.get(GRAPH_PREFIX);
 
         IAerospikeClient client = buildAerospikeClient(configuration);
 
+        ExecutorService aerospikeExecutor = buildExecutor(4, configuration.get(AEROSPIKE_PARALLELISM), "main");
+
+        ExecutorService aerospikeGetExecutor = buildExecutor(4, configuration.get(AEROSPIKE_READ_PARALLELISM), "get");
+
         return new AerospikeOperations(graphPrefix, namespace, client,
-                aerospikePolicyProvider, aerospikeExecutor);
+                aerospikePolicyProvider, aerospikeExecutor, aerospikeGetExecutor);
+    }
+
+    private ThreadPoolExecutor buildExecutor(int i, Integer integer, String main) {
+        return new ThreadPoolExecutor(i, integer,
+                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
+                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, main));
     }
 
     protected WalOperations buildWalOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
@@ -144,15 +150,13 @@ public class BasicOperations implements Operations {
     }
 
     protected ReadOperations buildReadOperations(Configuration configuration, AerospikeOperations aerospikeOperations) {
-        return new ReadOperations(aerospikeOperations, configuration.get(BATCH_READ_THRESHOLD));
+        return new ReadOperations(aerospikeOperations, configuration.get(PARALLEL_READ_THRESHOLD));
     }
 
     protected ScanOperations buildScanOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
         Integer scanParallelism = configuration.get(SCAN_PARALLELISM);
         if(scanParallelism > 0){
-            ExecutorService scanExecutor = new ThreadPoolExecutor(0, scanParallelism,
-                    1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
-                    new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "scan"));
+            ExecutorService scanExecutor = buildExecutor(0, scanParallelism, "scan");
             return new BasicScanOperations(aerospikeOperations, scanExecutor);
 
         } else {

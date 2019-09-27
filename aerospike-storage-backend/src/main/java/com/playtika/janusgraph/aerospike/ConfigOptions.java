@@ -41,8 +41,16 @@ public class ConfigOptions {
             "You may consider to start WAL Completer externally than you will be able to suspend and resume it manually",
             ConfigOption.Type.LOCAL, true);
 
-    public static final ConfigOption<Integer> BATCH_READ_THRESHOLD = new ConfigOption<>(STORAGE_NS,
-            "batch-read-threshold", "Number of keys when we should start using batch reads instead of parallel",
-            ConfigOption.Type.LOCAL, 2);
+    public static final ConfigOption<Integer> PARALLEL_READ_THRESHOLD = new ConfigOption<>(STORAGE_NS,
+            "parallel-read-threshold", "Number of keys when we should start run reads in parallel",
+            ConfigOption.Type.LOCAL, 5);
+
+    public static final ConfigOption<Integer> AEROSPIKE_READ_PARALLELISM = new ConfigOption<>(STORAGE_NS,
+            "aerospike-read-parallelism", "Limits how many parallel read calls allowed to aerospike",
+            ConfigOption.Type.LOCAL, 100);
+
+    public static final ConfigOption<Integer> AEROSPIKE_CONNECTIONS_PER_NODE= new ConfigOption<>(STORAGE_NS,
+            "aerospike-connections-per-node-parallelism", "Limits how many connections aerospike can hold per node",
+            ConfigOption.Type.LOCAL, 300);
 
 }
