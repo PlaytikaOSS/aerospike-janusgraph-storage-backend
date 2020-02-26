@@ -102,6 +102,8 @@ public class AerospikeOperations {
         clientPolicy.user = configuration.has(AUTH_USERNAME) ? configuration.get(AUTH_USERNAME) : null;
         clientPolicy.password = configuration.has(AUTH_PASSWORD) ? configuration.get(AUTH_PASSWORD) : null;
         clientPolicy.maxConnsPerNode = configuration.get(AEROSPIKE_CONNECTIONS_PER_NODE);
+        clientPolicy.readPolicyDefault.totalTimeout = configuration.get(AEROSPIKE_READ_TIMEOUT);
+        clientPolicy.writePolicyDefault.totalTimeout = configuration.get(AEROSPIKE_WRITE_TIMEOUT);
 
         return new AerospikeClient(clientPolicy, hosts);
     }
