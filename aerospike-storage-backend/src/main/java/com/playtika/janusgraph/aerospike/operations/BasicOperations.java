@@ -2,7 +2,6 @@ package com.playtika.janusgraph.aerospike.operations;
 
 import com.aerospike.client.IAerospikeClient;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
-import com.playtika.janusgraph.aerospike.TestAerospikePolicyProvider;
 import com.playtika.janusgraph.aerospike.transaction.TransactionalOperations;
 import com.playtika.janusgraph.aerospike.transaction.WalOperations;
 import com.playtika.janusgraph.aerospike.transaction.WriteAheadLogCompleter;
@@ -18,7 +17,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_PARALLELISM;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_READ_PARALLELISM;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.GRAPH_PREFIX;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.PARALLEL_READ_THRESHOLD;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeClient;
 
 public class BasicOperations implements Operations {
@@ -26,7 +30,6 @@ public class BasicOperations implements Operations {
     public static final String JANUS_AEROSPIKE_THREAD_GROUP_NAME = "janus-aerospike";
 
     private final Configuration configuration;
-    private final AerospikePolicyProvider aerospikePolicyProvider;
     private final AerospikeOperations aerospikeOperations;
     private final WalOperations walOperations;
     private final WriteAheadLogManager writeAheadLogManager;
@@ -41,8 +44,7 @@ public class BasicOperations implements Operations {
 
     public BasicOperations(Configuration configuration) {
         this.configuration = configuration;
-        this.aerospikePolicyProvider = buildPolicyProvider(configuration);
-        this.aerospikeOperations = buildAerospikeOperations(configuration, aerospikePolicyProvider);
+        this.aerospikeOperations = buildAerospikeOperations(configuration);
         this.walOperations = buildWalOperations(configuration, aerospikeOperations);
         this.writeAheadLogManager = buildWriteAheadLogManager(walOperations, getClock());
         this.lockOperations = buildLockOperations(aerospikeOperations);
@@ -81,15 +83,17 @@ public class BasicOperations implements Operations {
         return scanOperations;
     }
 
-    protected AerospikePolicyProvider buildPolicyProvider(Configuration configuration){
-        return configuration.get(TEST_ENVIRONMENT) ? new TestAerospikePolicyProvider() : new AerospikePolicyProvider();
+    protected AerospikePolicyProvider buildPolicyProvider(Configuration configuration) {
+        return new AerospikePolicyProvider(configuration);
     }
 
-    protected AerospikeOperations buildAerospikeOperations(Configuration configuration, AerospikePolicyProvider aerospikePolicyProvider) {
+    protected AerospikeOperations buildAerospikeOperations(Configuration configuration) {
         String namespace = configuration.get(NAMESPACE);
         String graphPrefix = configuration.get(GRAPH_PREFIX);
 
-        IAerospikeClient client = buildAerospikeClient(configuration);
+        AerospikePolicyProvider aerospikePolicyProvider = buildPolicyProvider(configuration);
+
+        IAerospikeClient client = buildAerospikeClient(configuration, aerospikePolicyProvider.clientPolicy());
 
         ExecutorService aerospikeExecutor = buildExecutor(4, configuration.get(AEROSPIKE_PARALLELISM), "main");
 

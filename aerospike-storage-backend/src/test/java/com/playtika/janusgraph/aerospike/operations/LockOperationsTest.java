@@ -5,7 +5,7 @@ import com.aerospike.client.Key;
 import com.aerospike.client.Value;
 import com.aerospike.client.cdt.MapOperation;
 import com.aerospike.client.cdt.MapPolicy;
-import com.playtika.janusgraph.aerospike.TestAerospikePolicyProvider;
+import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.locking.PermanentLockingException;
 import org.janusgraph.diskstorage.locking.TemporaryLockingException;
@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
 import static com.playtika.janusgraph.aerospike.transaction.WriteAheadLogManagerBasic.getBytesFromUUID;
@@ -45,7 +46,7 @@ public class LockOperationsTest {
 
     private LockOperations lockOperations = new BasicLockOperations(
             new AerospikeOperations("test", AEROSPIKE_PROPERTIES.getNamespace(), client,
-                    new TestAerospikePolicyProvider(),
+                    new AerospikePolicyProvider(getAerospikeConfiguration(container)),
                     Executors.newCachedThreadPool(),
                     Executors.newCachedThreadPool()));
 
