@@ -33,7 +33,7 @@ public class BasicScanOperations implements ScanOperations {
                 aerospikeOperations.getClient().scanAll(scanPolicy,
                         aerospikeOperations.getNamespace(), aerospikeOperations.getSetName(storeName), keyIterator);
             } finally {
-                keyIterator.terminate();
+                keyIterator.close();
             }
         });
 
