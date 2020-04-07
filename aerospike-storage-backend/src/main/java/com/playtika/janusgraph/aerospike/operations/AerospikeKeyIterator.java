@@ -83,8 +83,11 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
     @Override
     public boolean hasNext() {
         try {
-            return next != null && next != TERMINATE_VALUE
-                    || (next = queue.take()) != TERMINATE_VALUE;
+            if(next == TERMINATE_VALUE){
+                return false;
+            }
+
+            return next != null || (next = queue.take()) != TERMINATE_VALUE;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

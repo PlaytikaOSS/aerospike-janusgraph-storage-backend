@@ -12,7 +12,6 @@ import com.aerospike.client.cdt.MapReturnType;
 import com.aerospike.client.cdt.MapWriteMode;
 import com.aerospike.client.policy.WritePolicy;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
-import org.janusgraph.diskstorage.PermanentBackendException;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -10,7 +10,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.testcontainers.containers.GenericContainer;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
@@ -59,5 +61,13 @@ public class GraphOfTheGodsTest {
     public void testQueryAllEdges()  {
         assertEquals("Expected the correct number of EDGES",
                 17, graph.traversal().E().count().tryNext().get().longValue());
+    }
+
+    @Test
+    public void testRemoveAllVertices()  {
+        List<Object> vertexIds = new ArrayList<>();
+        graph.traversal().V().forEachRemaining(vertex -> vertexIds.add(vertex.id()));
+        graph.traversal().V(vertexIds).drop().iterate();
+        graph.tx().commit();
     }
 }
