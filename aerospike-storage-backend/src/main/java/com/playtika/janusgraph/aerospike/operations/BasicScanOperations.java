@@ -33,8 +33,12 @@ public class BasicScanOperations implements ScanOperations {
     @Override
     public KeyIterator getKeys(String storeName, SliceQuery query, StoreTransaction txh) {
         logger.warn("Running scan operations storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
-        logger.trace("Running scan operations stacktrace:\n{}", Stream.of(Thread.currentThread().getStackTrace())
-                .map(StackTraceElement::toString).collect(Collectors.joining("\n")));
+        if (logger.isTraceEnabled()) {
+            logger.trace("Running scan operations stacktrace:\n{}",
+                         Stream.of(Thread.currentThread().getStackTrace())
+                               .map(StackTraceElement::toString)
+                               .collect(Collectors.joining("\n")));
+        }
 
         AerospikeKeyIterator keyIterator = new AerospikeKeyIterator(query);
 
