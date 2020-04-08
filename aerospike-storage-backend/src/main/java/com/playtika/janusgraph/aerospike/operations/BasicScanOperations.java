@@ -7,7 +7,6 @@ import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -33,9 +32,13 @@ public class BasicScanOperations implements ScanOperations {
 
     @Override
     public KeyIterator getKeys(String storeName, SliceQuery query, StoreTransaction txh) {
-        logger.warn("Running scan operations storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
-        logger.trace("Running scan operations stacktrace:\n{}", Stream.of(Thread.currentThread().getStackTrace())
-                .map(StackTraceElement::toString).collect(Collectors.joining("\n")));
+        logger.warn("Running scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Running scan operation stacktrace:\n{}",
+                         Stream.of(Thread.currentThread().getStackTrace())
+                               .map(StackTraceElement::toString)
+                               .collect(Collectors.joining("\n")));
+        }
 
         AerospikeKeyIterator keyIterator = new AerospikeKeyIterator(query);
 
@@ -45,6 +48,7 @@ public class BasicScanOperations implements ScanOperations {
                         aerospikeOperations.getNamespace(), aerospikeOperations.getSetName(storeName), keyIterator);
             } finally {
                 keyIterator.close();
+                logger.debug("Finished scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
             }
         });
 

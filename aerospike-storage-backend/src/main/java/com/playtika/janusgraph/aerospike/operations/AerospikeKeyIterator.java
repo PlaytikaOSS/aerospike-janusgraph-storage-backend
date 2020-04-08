@@ -115,13 +115,11 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
 
     @Override
     public void scanCallback(Key key, Record record) throws AerospikeException {
+        if (closed.get()) {
+            throw new AerospikeException("AerospikeKeyIterator get closed, terminate scan");
+        }
         try {
-            if(closed.get()){
-                throw new AerospikeException("AerospikeKeyIterator get closed, terminate scan");
-            }
-
             queue.put(new KeyRecord(key, record));
-
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
