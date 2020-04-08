@@ -32,9 +32,9 @@ public class BasicScanOperations implements ScanOperations {
 
     @Override
     public KeyIterator getKeys(String storeName, SliceQuery query, StoreTransaction txh) {
-        logger.warn("Running scan operations storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
+        logger.warn("Running scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
         if (logger.isTraceEnabled()) {
-            logger.trace("Running scan operations stacktrace:\n{}",
+            logger.trace("Running scan operation stacktrace:\n{}",
                          Stream.of(Thread.currentThread().getStackTrace())
                                .map(StackTraceElement::toString)
                                .collect(Collectors.joining("\n")));
@@ -48,10 +48,9 @@ public class BasicScanOperations implements ScanOperations {
                         aerospikeOperations.getNamespace(), aerospikeOperations.getSetName(storeName), keyIterator);
             } finally {
                 keyIterator.close();
+                logger.debug("Finished scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
             }
         });
-
-        logger.debug("Finished scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
 
         return keyIterator;
     }
