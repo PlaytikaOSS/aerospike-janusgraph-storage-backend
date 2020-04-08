@@ -7,7 +7,6 @@ import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -47,6 +46,8 @@ public class BasicScanOperations implements ScanOperations {
                 keyIterator.close();
             }
         });
+
+        logger.debug("Finished scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
 
         return keyIterator;
     }
