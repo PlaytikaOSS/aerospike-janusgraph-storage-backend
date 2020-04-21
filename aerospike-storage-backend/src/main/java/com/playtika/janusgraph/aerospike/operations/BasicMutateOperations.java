@@ -1,10 +1,8 @@
 package com.playtika.janusgraph.aerospike.operations;
 
 import com.aerospike.client.AerospikeException;
-import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.Key;
 import com.aerospike.client.Operation;
-import com.aerospike.client.Record;
 import com.aerospike.client.ResultCode;
 import com.aerospike.client.Value;
 import com.aerospike.client.cdt.MapOperation;
@@ -13,19 +11,18 @@ import com.aerospike.client.cdt.MapPolicy;
 import com.aerospike.client.cdt.MapReturnType;
 import com.aerospike.client.cdt.MapWriteMode;
 import com.aerospike.client.policy.WritePolicy;
+import com.aerospike.client.reactor.IAerospikeReactorClient;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
-import static com.playtika.janusgraph.aerospike.util.AsyncUtil.completeAll;
-import static java.util.concurrent.CompletableFuture.runAsync;
 
-public class BasicMutateOperations implements MutateOperations {
+public class BasicMutateOperations implements MutateOperations{
 
     static final MapPolicy mapPolicy = new MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE);
 
@@ -42,27 +39,9 @@ public class BasicMutateOperations implements MutateOperations {
     }
 
     @Override
-    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore, boolean wal) {
-
-        List<CompletableFuture<?>> mutations = new ArrayList<>();
-
-        mutationsByStore.forEach((storeName, storeMutations) -> {
-            for(Map.Entry<Value, Map<Value, Value>> mutationEntry : storeMutations.entrySet()){
-                Value key = mutationEntry.getKey();
-                Map<Value, Value> mutation = mutationEntry.getValue();
-                mutations.add(runAsync(() -> mutate(storeName, key, mutation, wal),
-                        aerospikeOperations.getAerospikeExecutor()));
-            }
-        });
-
-        completeAll(mutations);
-    }
-
-    @Override
-    public void mutate(String storeName, Value keyValue, Map<Value, Value> mutation, boolean wal) {
-        Key key = aerospikeOperations.getKey(storeName, keyValue);
+    public Mono<Void> mutate(String storeName, Value key, Map<Value, Value> mutation, boolean calledByWal) {
+        Key aerospikeKey = aerospikeOperations.getKey(storeName, key);
         List<Operation> operations = new ArrayList<>(3);
-
         List<Value> keysToRemove = new ArrayList<>(mutation.size());
         Map<Value, Value> itemsToAdd = new HashMap<>(mutation.size());
         for(Map.Entry<Value, Value> entry : mutation.entrySet()){
@@ -81,30 +60,29 @@ public class BasicMutateOperations implements MutateOperations {
             operations.add(MapOperation.putItems(mapPolicy, ENTRIES_BIN_NAME, itemsToAdd));
         }
 
-        int entriesNoOperationIndex = -1;
+        int entriesNoOperationIndex;
         if(!keysToRemove.isEmpty()){
             entriesNoOperationIndex = operations.size();
             operations.add(MapOperation.size(ENTRIES_BIN_NAME));
+        } else {
+            entriesNoOperationIndex = -1;
         }
 
-        IAerospikeClient client = aerospikeOperations.getClient();
-        Record record;
-        try {
-            record = client.operate(mutatePolicy, key, operations.toArray(new Operation[0]));
-        } catch (AerospikeException ae){
-            //need to check to guarantee idempotency
-            if(wal && ae.getResultCode() == ResultCode.KEY_NOT_FOUND_ERROR){
-                return;
-            }
-            throw ae;
-        }
-
-        if(entriesNoOperationIndex != -1){
-            long entriesNoAfterMutation = (Long)record.getList(ENTRIES_BIN_NAME).get(entriesNoOperationIndex);
-            if(entriesNoAfterMutation == 0){
-                client.delete(deletePolicy, key);
-            }
-        }
+        IAerospikeReactorClient client = aerospikeOperations.getReactorClient();
+        return client.operate(mutatePolicy, aerospikeKey, operations.toArray(new Operation[0]))
+                .onErrorResume(throwable -> throwable instanceof AerospikeException
+                        && calledByWal
+                        && ((AerospikeException)throwable).getResultCode() == ResultCode.KEY_NOT_FOUND_ERROR,
+                        throwable -> Mono.empty())
+                .flatMap(keyRecord -> {
+                    if(entriesNoOperationIndex != -1){
+                        long entriesNoAfterMutation = (Long)keyRecord.record.getList(ENTRIES_BIN_NAME).get(entriesNoOperationIndex);
+                        if(entriesNoAfterMutation == 0){
+                            return client.delete(deletePolicy, aerospikeKey);
+                        }
+                    }
+                    return Mono.empty();
+                }).then();
     }
 
     private static WritePolicy buildMutationPolicy(AerospikePolicyProvider policyProvider){

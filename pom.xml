@@ -47,13 +47,18 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <aerospike-client.version>4.4.10</aerospike-client.version>
+        <aerospike-client.version>4.4.15</aerospike-client.version>
+        <aerospike-reactor-client.version>4.4.10</aerospike-reactor-client.version>
         <janusgraph.version>0.3.1</janusgraph.version>
+        <aerospike-batch-updater.version>0.0.14</aerospike-batch-updater.version>
+        <netty-all.version>4.1.51.Final</netty-all.version>
 
         <!--Test-->
         <junit.version>4.13</junit.version>
         <assertj.version>3.15.0</assertj.version>
         <testcontainers.version>1.13.0</testcontainers.version>
+        <blockhound.version>1.0.3.RELEASE</blockhound.version>
+        <disruptor.version>3.4.2</disruptor.version>
 
         <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
@@ -83,6 +88,7 @@
         <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
         <embedded-aerospike.version>1.19</embedded-aerospike.version>
         <awaitility.version>3.1.2</awaitility.version>
+
     </properties>
 
     <profiles>
@@ -190,9 +196,27 @@
             </dependency>
 
             <dependency>
+                <groupId>com.playtika.nosql</groupId>
+                <artifactId>aerospike-batch-updater</artifactId>
+                <version>${aerospike-batch-updater.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.aerospike</groupId>
+                <artifactId>aerospike-reactor-client</artifactId>
+                <version>${aerospike-reactor-client.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
                 <version>${slf4j-api.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-all</artifactId>
+                <version>${netty-all.version}</version>
             </dependency>
 
             <!--Test-->
@@ -259,6 +283,22 @@
                 <groupId>org.awaitility</groupId>
                 <artifactId>awaitility</artifactId>
                 <version>${awaitility.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!--Needed for tracking blocking calls in reactive application https://github.com/reactor/BlockHound -->
+            <dependency>
+                <groupId>io.projectreactor.tools</groupId>
+                <artifactId>blockhound</artifactId>
+                <version>${blockhound.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!--Need it to make log4j2 async-->
+            <dependency>
+                <groupId>com.lmax</groupId>
+                <artifactId>disruptor</artifactId>
+                <version>${disruptor.version}</version>
                 <scope>test</scope>
             </dependency>
 

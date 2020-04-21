@@ -6,7 +6,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.playtika.janusgraph.aerospike.operations.AerospikeOperations;
 import com.playtika.janusgraph.aerospike.operations.BasicOperations;
+import com.playtika.janusgraph.aerospike.operations.ErrorMapper;
 import com.playtika.janusgraph.aerospike.operations.Operations;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchLocks;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchUpdate;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
 import org.janusgraph.diskstorage.PermanentBackendException;
@@ -92,7 +96,9 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     @Override
     public StoreTransaction beginTransaction(final BaseTransactionConfig config) {
-        return new AerospikeTransaction(config);
+        AerospikeTransaction txh = new AerospikeTransaction(config);
+        logger.trace("beginTransaction(tx:{})", txh);
+        return txh;
     }
 
     @Override
@@ -100,7 +106,11 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "Database name may not be null or empty");
 
         return new AerospikeKeyColumnValueStore(name,
-                operations.getReadOperations(), operations.getTransactionalOperations(), operations.getScanOperations());
+                operations.getReadOperations(),
+                operations.getAerospikeOperations(),
+                operations.batchUpdater(),
+                operations.mutateOperations(),
+                operations.getScanOperations());
     }
 
     @Override
@@ -109,14 +119,18 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     }
 
     @Override
-    public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) throws BackendException {
+    public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) {
         logger.trace("mutateMany(tx:{}, {})", txh, mutations);
 
         Map<String, Map<Value, Map<Value, Value>>> locksByStore = ((AerospikeTransaction) txh).getLocksByStoreKeyColumn();
 
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
 
-        operations.getTransactionalOperations().mutateTransactionally(locksByStore, mutationsByStore);
+        operations.batchUpdater().update(new BatchUpdate(
+                new BatchLocks(locksByStore, operations.getAerospikeOperations()),
+                new BatchUpdates(mutationsByStore)))
+                .onErrorMap(ErrorMapper.INSTANCE)
+        .block();
     }
 
     private static Map<String, Map<Value, Map<Value, Value>>> groupMutationsByStoreKeyColumn(

@@ -22,14 +22,10 @@ public class ConfigOptions {
                  "Should be greater then zero if you want to enable scan feature",
             ConfigOption.Type.LOCAL, 0);
 
-    public static final ConfigOption<Integer> AEROSPIKE_PARALLELISM = new ConfigOption<>(STORAGE_NS,
-            "aerospike-parallelism", "Limits how many parallel calls allowed to aerospike",
-            ConfigOption.Type.LOCAL, 100);
-
     public static final ConfigOption<Long> WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD = new ConfigOption<>(STORAGE_NS,
             "wal-threshold", "After this period of time (in ms) transaction in WAL considered to be stale " +
             "and can be re-processed",
-            ConfigOption.Type.LOCAL, 60000L);
+            ConfigOption.Type.LOCAL, 600000L);
 
     public static final ConfigOption<Boolean> TEST_ENVIRONMENT = new ConfigOption<>(STORAGE_NS,
             "test-environment", "Weather this production or test environment",
@@ -41,16 +37,18 @@ public class ConfigOptions {
             "You may consider to start WAL Completer externally than you will be able to suspend and resume it manually",
             ConfigOption.Type.LOCAL, true);
 
-    public static final ConfigOption<Integer> PARALLEL_READ_THRESHOLD = new ConfigOption<>(STORAGE_NS,
-            "parallel-read-threshold", "Number of keys when we should start run reads in parallel",
-            ConfigOption.Type.LOCAL, 5);
-
-    public static final ConfigOption<Integer> AEROSPIKE_READ_PARALLELISM = new ConfigOption<>(STORAGE_NS,
-            "aerospike-read-parallelism", "Limits how many parallel read calls allowed to aerospike",
-            ConfigOption.Type.LOCAL, 100);
-
     public static final ConfigOption<Integer> AEROSPIKE_CONNECTIONS_PER_NODE= new ConfigOption<>(STORAGE_NS,
             "aerospike-connections-per-node-parallelism", "Limits how many connections aerospike can hold per node",
             ConfigOption.Type.LOCAL, 300);
+
+    public static final ConfigOption<Integer> AEROSPIKE_READ_TIMEOUT = new ConfigOption<>(STORAGE_NS,
+            "aerospike-read-timeout", "Total transaction timeout in milliseconds to aerospike read operations." +
+            "If timeout is zero, there will be no time limit",
+            ConfigOption.Type.LOCAL, 0);
+
+    public static final ConfigOption<Integer> AEROSPIKE_WRITE_TIMEOUT = new ConfigOption<>(STORAGE_NS,
+            "aerospike-write-timeout", "Total transaction timeout in milliseconds to aerospike write operations." +
+            "If timeout is zero, there will be no time limit",
+            ConfigOption.Type.LOCAL, 0);
 
 }
