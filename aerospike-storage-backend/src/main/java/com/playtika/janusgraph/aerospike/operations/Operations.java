@@ -1,15 +1,21 @@
 package com.playtika.janusgraph.aerospike.operations;
 
-import com.playtika.janusgraph.aerospike.transaction.TransactionalOperations;
-import com.playtika.janusgraph.aerospike.transaction.WriteAheadLogCompleter;
+import com.aerospike.client.Value;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchLocks;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates;
+import nosql.batch.update.BatchUpdater;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
+import nosql.batch.update.wal.WriteAheadLogCompleter;
 
 public interface Operations {
 
     AerospikeOperations getAerospikeOperations();
 
-    TransactionalOperations getTransactionalOperations();
+    BatchUpdater<BatchLocks, BatchUpdates, AerospikeLock, Value> batchUpdater();
 
-    WriteAheadLogCompleter getWriteAheadLogCompleter();
+    WriteAheadLogCompleter<BatchLocks, BatchUpdates, AerospikeLock, Value> getWriteAheadLogCompleter();
+
+    MutateOperations mutateOperations();
 
     ReadOperations getReadOperations();
 

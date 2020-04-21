@@ -1,4 +1,4 @@
-package com.playtika.janusgraph.aerospike.transaction;
+package com.playtika.janusgraph.aerospike.operations.batch;
 
 import com.playtika.janusgraph.aerospike.operations.AerospikeOperations;
 import org.janusgraph.diskstorage.configuration.Configuration;
@@ -16,7 +16,7 @@ public class WalOperations {
     public WalOperations(Configuration configuration, AerospikeOperations aerospikeOperations) {
         this.walNamespace = configuration.get(WAL_NAMESPACE);
         this.staleTransactionLifetimeThresholdInMs = configuration.get(WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD);
-        this.walSetName = aerospikeOperations.getGraphPrefix() + ".wal";
+        this.walSetName = aerospikeOperations.getGraphPrefix() + "wal";
         this.aerospikeOperations = aerospikeOperations;
     }
 

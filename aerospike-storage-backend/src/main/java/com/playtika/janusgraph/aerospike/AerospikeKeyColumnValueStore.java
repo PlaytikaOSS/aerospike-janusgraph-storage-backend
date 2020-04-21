@@ -1,10 +1,16 @@
 package com.playtika.janusgraph.aerospike;
 
 import com.aerospike.client.Value;
+import com.playtika.janusgraph.aerospike.operations.AerospikeOperations;
+import com.playtika.janusgraph.aerospike.operations.ErrorMapper;
 import com.playtika.janusgraph.aerospike.operations.MutateOperations;
 import com.playtika.janusgraph.aerospike.operations.ReadOperations;
 import com.playtika.janusgraph.aerospike.operations.ScanOperations;
-import com.playtika.janusgraph.aerospike.transaction.TransactionalOperations;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchLocks;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchUpdate;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates;
+import nosql.batch.update.BatchUpdater;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.Entry;
 import org.janusgraph.diskstorage.EntryList;
@@ -24,7 +30,9 @@ import java.util.List;
 import java.util.Map;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
-import static java.util.Collections.*;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonMap;
 
 public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
@@ -32,18 +40,23 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
     private final String storeName;
     private final ReadOperations readOperations;
-    private final TransactionalOperations transactionalOperations;
+    private final AerospikeOperations aerospikeOperations;
+    private final BatchUpdater<BatchLocks, BatchUpdates, AerospikeLock, Value> batchUpdater;
     private final MutateOperations mutateOperations;
     private final ScanOperations scanOperations;
 
-    AerospikeKeyColumnValueStore(String storeName,
-                                 ReadOperations readOperations,
-                                 TransactionalOperations transactionalOperations,
-                                 ScanOperations scanOperations) {
+    protected AerospikeKeyColumnValueStore(
+            String storeName,
+            ReadOperations readOperations,
+            AerospikeOperations aerospikeOperations,
+            BatchUpdater<BatchLocks, BatchUpdates, AerospikeLock, Value> batchUpdater,
+            MutateOperations mutateOperations,
+            ScanOperations scanOperations) {
         this.storeName = storeName;
         this.readOperations = readOperations;
-        this.transactionalOperations = transactionalOperations;
-        this.mutateOperations = transactionalOperations.getMutateOperations();
+        this.aerospikeOperations = aerospikeOperations;
+        this.batchUpdater = batchUpdater;
+        this.mutateOperations = mutateOperations;
         this.scanOperations = scanOperations;
     }
 
@@ -57,13 +70,13 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
      */
     @Override // This method is only supported by stores which do not keep keys in byte-order.
     public KeyIterator getKeys(SliceQuery query, StoreTransaction txh) {
-       logger.trace("getKeys({}, tx:{}, {})", storeName, txh, query);
+        logger.trace("getKeys({}, tx:{}, {})", storeName, txh, query);
 
-       return scanOperations.getKeys(storeName, query, txh);
+        return scanOperations.getKeys(storeName, query, txh);
     }
 
     @Override
-    public Map<StaticBuffer,EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
+    public Map<StaticBuffer,EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) {
         logger.trace("getSlice({}, tx:{}, {}, start:{}, end:{})",
                 storeName, txh, keys, query.getSliceStart(), query.getSliceEnd());
 
@@ -71,10 +84,10 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
     }
 
     @Override
-    public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) throws BackendException {
+    public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) {
         logger.trace("getSlice({}, tx:{}, {})", storeName, txh, query);
 
-        return readOperations.getSlice(storeName, query, txh);
+        return readOperations.getSlice(storeName, query, txh).block().getValue();
     }
 
     @Override
@@ -88,7 +101,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
         //no need in transactional logic
         if(transaction.getLocks().isEmpty()){
-            mutateOperations.mutate(storeName, keyValue, mutationMap, false);
+            mutateOperations.mutate(storeName, keyValue, mutationMap, false).block();
             return;
         }
 
@@ -107,7 +120,11 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = singletonMap(storeName,
                 singletonMap(keyValue, mutationMap));
 
-        transactionalOperations.mutateTransactionally(locksByStore, mutationsByStore);
+        batchUpdater.update(new BatchUpdate(
+                new BatchLocks(locksByStore, aerospikeOperations),
+                new BatchUpdates(mutationsByStore)))
+                .onErrorMap(ErrorMapper.INSTANCE)
+        .block();
     }
 
     static Map<Value, Value> mutationToMap(KCVMutation mutation){
@@ -126,7 +143,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
     public void acquireLock(final StaticBuffer key, final StaticBuffer column, final StaticBuffer expectedValue, final StoreTransaction txh) {
         //deferred locking approach
         //just add lock to transaction, actual lock will be acquired at commit phase
-        ((AerospikeTransaction)txh).addLock(new AerospikeLock(storeName, key, column, expectedValue));
+        ((AerospikeTransaction)txh).addLock(new DeferredLock(storeName, key, column, expectedValue));
         logger.trace("registered lock: {}:{}:{}:{}, tx:{}", storeName, key, column, expectedValue, txh);
     }
 

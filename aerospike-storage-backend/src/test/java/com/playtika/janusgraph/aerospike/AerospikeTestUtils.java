@@ -3,6 +3,8 @@ package com.playtika.janusgraph.aerospike;
 import com.aerospike.AerospikeContainerUtils;
 import com.aerospike.AerospikeProperties;
 import com.aerospike.client.AerospikeClient;
+import com.aerospike.client.async.EventLoops;
+import com.aerospike.client.policy.ClientPolicy;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.testcontainers.containers.GenericContainer;
 
@@ -18,6 +20,13 @@ public class AerospikeTestUtils {
 
     public static GenericContainer getAerospikeContainer() {
         return AerospikeContainerUtils.startAerospikeContainer(AEROSPIKE_PROPERTIES);
+    }
+
+    public static AerospikeClient getAerospikeClient(GenericContainer aerospike, EventLoops eventLoops) {
+        ClientPolicy clientPolicy = new ClientPolicy();
+        clientPolicy.eventLoops = eventLoops;
+        return new AerospikeClient(clientPolicy, aerospike.getContainerIpAddress(),
+                aerospike.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
     }
 
     public static ModifiableConfiguration getAerospikeConfiguration(GenericContainer container) {
