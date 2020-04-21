@@ -13,7 +13,7 @@ import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.g
 
 final class AerospikeTransaction extends AbstractStoreTransaction {
 
-    private final List<AerospikeLock> locks = new ArrayList<>();
+    private final List<DeferredLock> locks = new ArrayList<>();
 
     AerospikeTransaction(final BaseTransactionConfig config) {
         super(config);
@@ -29,11 +29,11 @@ final class AerospikeTransaction extends AbstractStoreTransaction {
         locks.clear();
     }
 
-    void addLock(AerospikeLock lock){
+    void addLock(DeferredLock lock){
         locks.add(lock);
     }
 
-    List<AerospikeLock> getLocks() {
+    List<DeferredLock> getLocks() {
         return locks;
     }
 

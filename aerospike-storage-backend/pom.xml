@@ -45,9 +45,31 @@
         </dependency>
 
         <dependency>
+            <groupId>com.aerospike</groupId>
+            <artifactId>aerospike-reactor-client</artifactId>
+            <exclusions>
+                <!--  take last version from aerospike-batch-updater -->
+                <exclusion>
+                    <groupId>io.projectreactor</groupId>
+                    <artifactId>reactor-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.playtika.nosql</groupId>
+            <artifactId>aerospike-batch-updater</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
         </dependency>
 
         <!--Test-->
@@ -86,6 +108,19 @@
         <dependency>
             <groupId>org.awaitility</groupId>
             <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--Needed for tracking blocking calls in reactive application https://github.com/reactor/BlockHound -->
+        <dependency>
+            <groupId>io.projectreactor.tools</groupId>
+            <artifactId>blockhound</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
             <scope>test</scope>
         </dependency>
 

@@ -1,59 +1,75 @@
 package com.playtika.janusgraph.aerospike.operations;
 
 import com.aerospike.client.IAerospikeClient;
+import com.aerospike.client.Value;
+import com.aerospike.client.policy.ClientPolicy;
+import com.aerospike.client.reactor.IAerospikeReactorClient;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
-import com.playtika.janusgraph.aerospike.TestAerospikePolicyProvider;
-import com.playtika.janusgraph.aerospike.transaction.TransactionalOperations;
-import com.playtika.janusgraph.aerospike.transaction.WalOperations;
-import com.playtika.janusgraph.aerospike.transaction.WriteAheadLogCompleter;
-import com.playtika.janusgraph.aerospike.transaction.WriteAheadLogManager;
-import com.playtika.janusgraph.aerospike.transaction.WriteAheadLogManagerBasic;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchLocks;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchOperationsUtil;
+import com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates;
+import com.playtika.janusgraph.aerospike.operations.batch.WalOperations;
 import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
+import nosql.batch.update.BatchOperations;
+import nosql.batch.update.BatchUpdater;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
+import nosql.batch.update.aerospike.wal.AerospikeExclusiveLocker;
+import nosql.batch.update.wal.WriteAheadLogCompleter;
 import org.janusgraph.diskstorage.configuration.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
-import static com.playtika.janusgraph.aerospike.ConfigOptions.*;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.GRAPH_PREFIX;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeClient;
+import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeReactorClient;
 
 public class BasicOperations implements Operations {
 
+    private static Logger logger = LoggerFactory.getLogger(BasicOperations.class);
+
     public static final String JANUS_AEROSPIKE_THREAD_GROUP_NAME = "janus-aerospike";
 
-    private final Configuration configuration;
-    private final AerospikePolicyProvider aerospikePolicyProvider;
     private final AerospikeOperations aerospikeOperations;
-    private final WalOperations walOperations;
-    private final WriteAheadLogManager writeAheadLogManager;
-    private final LockOperations lockOperations;
     private final MutateOperations mutateOperations;
-    private final TransactionalOperations transactionalOperations;
+    private final BatchUpdater<BatchLocks, BatchUpdates, AerospikeLock, Value> batchUpdater;
 
-    private final WriteAheadLogCompleter writeAheadLogCompleter;
+    private final WriteAheadLogCompleter<BatchLocks, BatchUpdates, AerospikeLock, Value> writeAheadLogCompleter;
 
     private final ReadOperations readOperations;
     private final ScanOperations scanOperations;
 
     public BasicOperations(Configuration configuration) {
-        this.configuration = configuration;
-        this.aerospikePolicyProvider = buildPolicyProvider(configuration);
-        this.aerospikeOperations = buildAerospikeOperations(configuration, aerospikePolicyProvider);
-        this.walOperations = buildWalOperations(configuration, aerospikeOperations);
-        this.writeAheadLogManager = buildWriteAheadLogManager(walOperations, getClock());
-        this.lockOperations = buildLockOperations(aerospikeOperations);
+        this.aerospikeOperations = buildAerospikeOperations(configuration);
+        WalOperations walOperations = buildWalOperations(configuration, aerospikeOperations);
         this.mutateOperations = buildMutateOperations(aerospikeOperations);
-        this.transactionalOperations = buildTransactionalOperations(
-                () -> writeAheadLogManager, () -> lockOperations, () -> mutateOperations);
-        this.writeAheadLogCompleter = buildWriteAheadLogCompleter(walOperations,
-                () -> writeAheadLogManager, () -> lockOperations, () -> mutateOperations);
+        BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> batchOperations
+                = buildBatchOperations(aerospikeOperations, walOperations, getClock());
+        this.batchUpdater = new BatchUpdater<>(batchOperations);
+        if(configuration.get(START_WAL_COMPLETER)){
+            this.writeAheadLogCompleter = buildWriteAheadLogCompleter(walOperations, batchOperations);
+        } else {
+            this.writeAheadLogCompleter = null;
+        }
 
-        this.readOperations = buildReadOperations(configuration, aerospikeOperations);
+        this.readOperations = buildReadOperations(aerospikeOperations);
         this.scanOperations = buildScanOperations(configuration, aerospikeOperations);
+    }
+
+    protected BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> buildBatchOperations(
+            AerospikeOperations aerospikeOperations, WalOperations walOperations, Clock clock) {
+        return BatchOperationsUtil.batchOperations(aerospikeOperations,
+                walOperations.getWalNamespace(), walOperations.getWalSetName(), clock);
     }
 
     @Override
@@ -62,13 +78,18 @@ public class BasicOperations implements Operations {
     }
 
     @Override
-    public TransactionalOperations getTransactionalOperations() {
-        return transactionalOperations;
+    public BatchUpdater<BatchLocks, BatchUpdates, AerospikeLock, Value> batchUpdater() {
+        return batchUpdater;
     }
 
     @Override
-    public WriteAheadLogCompleter getWriteAheadLogCompleter() {
+    public WriteAheadLogCompleter<BatchLocks, BatchUpdates, AerospikeLock, Value> getWriteAheadLogCompleter() {
         return writeAheadLogCompleter;
+    }
+
+    @Override
+    public MutateOperations mutateOperations() {
+        return mutateOperations;
     }
 
     @Override
@@ -81,28 +102,38 @@ public class BasicOperations implements Operations {
         return scanOperations;
     }
 
-    protected AerospikePolicyProvider buildPolicyProvider(Configuration configuration){
-        return configuration.get(TEST_ENVIRONMENT) ? new TestAerospikePolicyProvider() : new AerospikePolicyProvider();
+    protected AerospikePolicyProvider buildPolicyProvider(Configuration configuration) {
+        return new AerospikePolicyProvider(configuration);
     }
 
-    protected AerospikeOperations buildAerospikeOperations(Configuration configuration, AerospikePolicyProvider aerospikePolicyProvider) {
+    protected AerospikeOperations buildAerospikeOperations(Configuration configuration) {
         String namespace = configuration.get(NAMESPACE);
         String graphPrefix = configuration.get(GRAPH_PREFIX);
 
-        IAerospikeClient client = buildAerospikeClient(configuration);
+        AerospikePolicyProvider policyProvider = buildPolicyProvider(configuration);
+        ClientPolicy clientPolicy = policyProvider.clientPolicy();
+        IAerospikeClient client = buildAerospikeClient(configuration, clientPolicy);
+        waitForClientToConnect(client);
+        IAerospikeReactorClient reactorClient = buildAerospikeReactorClient(client, clientPolicy.eventLoops);
 
-        ExecutorService aerospikeExecutor = buildExecutor(4, configuration.get(AEROSPIKE_PARALLELISM), "main");
-
-        ExecutorService aerospikeGetExecutor = buildExecutor(4, configuration.get(AEROSPIKE_READ_PARALLELISM), "get");
-
-        return new AerospikeOperations(graphPrefix, namespace, client,
-                aerospikePolicyProvider, aerospikeExecutor, aerospikeGetExecutor);
+        return new AerospikeOperations(graphPrefix, namespace, client, reactorClient, policyProvider);
     }
 
-    private ThreadPoolExecutor buildExecutor(int i, Integer integer, String main) {
-        return new ThreadPoolExecutor(i, integer,
+    private void waitForClientToConnect(IAerospikeClient client) {
+        while (!client.isConnected()) {
+            logger.debug("Waiting for client [{}] to connect to Aerospike cluster", client);
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                throw new RuntimeException();
+            }
+        }
+    }
+
+    private ThreadPoolExecutor buildExecutor(int corePoolSize, Integer maxPoolSize, String name) {
+        return new ThreadPoolExecutor(corePoolSize, maxPoolSize,
                 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
-                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, main));
+                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, name));
     }
 
     protected WalOperations buildWalOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
@@ -113,44 +144,26 @@ public class BasicOperations implements Operations {
         return Clock.systemUTC();
     }
 
-    protected TransactionalOperations buildTransactionalOperations(
-            Supplier<WriteAheadLogManager> writeAheadLogManager,
-            Supplier<LockOperations> lockOperations,
-            Supplier<MutateOperations> mutateOperations){
-        return new TransactionalOperations(writeAheadLogManager.get(), lockOperations.get(), mutateOperations.get());
-    }
-
     protected MutateOperations buildMutateOperations(AerospikeOperations aerospikeOperations) {
         return new BasicMutateOperations(aerospikeOperations);
     }
 
-    protected LockOperations buildLockOperations(AerospikeOperations aerospikeOperations) {
-        return new BasicLockOperations(aerospikeOperations);
-    }
-
-    protected WriteAheadLogManager buildWriteAheadLogManager(WalOperations walOperations, Clock clock) {
-        return new WriteAheadLogManagerBasic(walOperations, clock);
-    }
-
-    protected WriteAheadLogCompleter buildWriteAheadLogCompleter(
+    protected WriteAheadLogCompleter<BatchLocks, BatchUpdates, AerospikeLock, Value> buildWriteAheadLogCompleter(
             WalOperations walOperations,
-            Supplier<WriteAheadLogManager> writeAheadLogManager,
-            Supplier<LockOperations> lockOperations,
-            Supplier<MutateOperations> mutateOperations){
-        return new WriteAheadLogCompleter(
-                walOperations,
-                buildWalCompleterTransactionalOperations(writeAheadLogManager, lockOperations, mutateOperations));
+            BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> batchOperations){
+        return new WriteAheadLogCompleter<>(
+                batchOperations,
+                Duration.ofMillis(walOperations.getStaleTransactionLifetimeThresholdInMs()),
+                new AerospikeExclusiveLocker(
+                        walOperations.getAerospikeOperations().getClient(),
+                        walOperations.getWalNamespace(),
+                        walOperations.getWalSetName()),
+                Executors.newScheduledThreadPool(1)
+        );
     }
 
-    protected TransactionalOperations buildWalCompleterTransactionalOperations(
-            Supplier<WriteAheadLogManager> writeAheadLogManager,
-            Supplier<LockOperations> lockOperations,
-            Supplier<MutateOperations> mutateOperations){
-        return new TransactionalOperations(writeAheadLogManager.get(), lockOperations.get(), mutateOperations.get());
-    }
-
-    protected ReadOperations buildReadOperations(Configuration configuration, AerospikeOperations aerospikeOperations) {
-        return new ReadOperations(aerospikeOperations, configuration.get(PARALLEL_READ_THRESHOLD));
+    protected ReadOperations buildReadOperations(AerospikeOperations aerospikeOperations) {
+        return new ReadOperations(aerospikeOperations);
     }
 
     protected ScanOperations buildScanOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
@@ -166,7 +179,9 @@ public class BasicOperations implements Operations {
 
     @Override
     public void close() {
-        writeAheadLogCompleter.shutdown();
+        if(writeAheadLogCompleter != null) {
+            writeAheadLogCompleter.shutdown();
+        }
         scanOperations.close();
         aerospikeOperations.close();
     }
