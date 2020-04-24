@@ -53,7 +53,7 @@
         <!--Test-->
         <junit.version>4.13</junit.version>
         <assertj.version>3.15.0</assertj.version>
-        <testcontainers.version>1.13.0</testcontainers.version>
+        <testcontainers.version>1.14.1</testcontainers.version>
 
         <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
