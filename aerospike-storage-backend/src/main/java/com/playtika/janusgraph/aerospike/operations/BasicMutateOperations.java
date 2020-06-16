@@ -1,9 +1,11 @@
 package com.playtika.janusgraph.aerospike.operations;
 
+import com.aerospike.client.AerospikeException;
 import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.Key;
 import com.aerospike.client.Operation;
 import com.aerospike.client.Record;
+import com.aerospike.client.ResultCode;
 import com.aerospike.client.Value;
 import com.aerospike.client.cdt.MapOperation;
 import com.aerospike.client.cdt.MapOrder;
@@ -40,7 +42,7 @@ public class BasicMutateOperations implements MutateOperations {
     }
 
     @Override
-    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) {
+    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore, boolean wal) {
 
         List<CompletableFuture<?>> mutations = new ArrayList<>();
 
@@ -48,7 +50,7 @@ public class BasicMutateOperations implements MutateOperations {
             for(Map.Entry<Value, Map<Value, Value>> mutationEntry : storeMutations.entrySet()){
                 Value key = mutationEntry.getKey();
                 Map<Value, Value> mutation = mutationEntry.getValue();
-                mutations.add(runAsync(() -> mutate(storeName, key, mutation),
+                mutations.add(runAsync(() -> mutate(storeName, key, mutation, wal),
                         aerospikeOperations.getAerospikeExecutor()));
             }
         });
@@ -57,7 +59,7 @@ public class BasicMutateOperations implements MutateOperations {
     }
 
     @Override
-    public void mutate(String storeName, Value keyValue, Map<Value, Value> mutation) {
+    public void mutate(String storeName, Value keyValue, Map<Value, Value> mutation, boolean wal) {
         Key key = aerospikeOperations.getKey(storeName, keyValue);
         List<Operation> operations = new ArrayList<>(3);
 
@@ -86,7 +88,17 @@ public class BasicMutateOperations implements MutateOperations {
         }
 
         IAerospikeClient client = aerospikeOperations.getClient();
-        Record record = client.operate(mutatePolicy, key, operations.toArray(new Operation[0]));
+        Record record;
+        try {
+            record = client.operate(mutatePolicy, key, operations.toArray(new Operation[0]));
+        } catch (AerospikeException ae){
+            //need to check to guarantee idempotency
+            if(wal && ae.getResultCode() == ResultCode.KEY_NOT_FOUND_ERROR){
+                return;
+            }
+            throw ae;
+        }
+
         if(entriesNoOperationIndex != -1){
             long entriesNoAfterMutation = (Long)record.getList(ENTRIES_BIN_NAME).get(entriesNoOperationIndex);
             if(entriesNoAfterMutation == 0){

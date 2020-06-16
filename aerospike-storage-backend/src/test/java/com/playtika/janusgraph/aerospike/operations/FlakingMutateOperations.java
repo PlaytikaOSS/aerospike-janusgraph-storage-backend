@@ -19,21 +19,21 @@ public class FlakingMutateOperations implements MutateOperations {
     }
 
     @Override
-    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) throws PermanentBackendException {
+    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore, boolean wal) throws PermanentBackendException {
         if(fails.get()){
             Map<String, Map<Value, Map<Value, Value>>> mutationsByStorePartial = selectFlaking(mutationsByStore,
                     "mutateMany failed flaking in [{}] for key [{}]");
 
-            mutateOperations.mutateMany(mutationsByStorePartial);
+            mutateOperations.mutateMany(mutationsByStorePartial, wal);
             throw new RuntimeException();
 
         } else {
-            mutateOperations.mutateMany(mutationsByStore);
+            mutateOperations.mutateMany(mutationsByStore, wal);
         }
     }
 
     @Override
-    public void mutate(String storeName, Value key, Map<Value, Value> mutation) {
-        mutateOperations.mutate(storeName, key, mutation);
+    public void mutate(String storeName, Value key, Map<Value, Value> mutation, boolean wal) {
+        mutateOperations.mutate(storeName, key, mutation, wal);
     }
 }

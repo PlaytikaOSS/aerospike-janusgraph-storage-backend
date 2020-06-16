@@ -9,7 +9,6 @@ import com.aerospike.client.Value;
 import com.aerospike.client.policy.RecordExistsAction;
 import com.aerospike.client.policy.WritePolicy;
 import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
-import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.locking.PermanentLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,10 +141,6 @@ public class WriteAheadLogCompleter {
                     }
                 }
             }
-        }
-        catch (BackendException t) {
-            logger.error("Error while running completeHangedTransactions()", t);
-            throw new RuntimeException(t);
         }
         catch (Throwable t) {
             logger.error("Error while running completeHangedTransactions()", t);

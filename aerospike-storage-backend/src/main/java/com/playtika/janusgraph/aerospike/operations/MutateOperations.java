@@ -7,7 +7,7 @@ import java.util.Map;
 
 public interface MutateOperations {
 
-    void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) throws PermanentBackendException;
+    void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore, boolean wal) throws PermanentBackendException;
 
-    void mutate(String storeName, Value key, Map<Value, Value> mutation);
+    void mutate(String storeName, Value key, Map<Value, Value> mutation, boolean wal);
 }

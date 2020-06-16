@@ -88,7 +88,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
         //no need in transactional logic
         if(transaction.getLocks().isEmpty()){
-            mutateOperations.mutate(storeName, keyValue, mutationMap);
+            mutateOperations.mutate(storeName, keyValue, mutationMap, false);
             return;
         }
 
