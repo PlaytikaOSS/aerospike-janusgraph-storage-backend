@@ -34,13 +34,13 @@ public class TransactionalOperations {
     }
 
     void processAndDeleteTransaction(Value transactionId,
-                                            Map<String, Map<Value, Map<Value, Value>>> locksByStore,
-                                            Map<String, Map<Value, Map<Value, Value>>> mutationsByStore,
-                                            boolean checkTransactionId) throws BackendException {
-        Set<Key> keysLocked = lockOperations.acquireLocks(transactionId, locksByStore, checkTransactionId,
+                                     Map<String, Map<Value, Map<Value, Value>>> locksByStore,
+                                     Map<String, Map<Value, Map<Value, Value>>> mutationsByStore,
+                                     boolean wal) throws BackendException {
+        Set<Key> keysLocked = lockOperations.acquireLocks(transactionId, locksByStore, wal,
                 keyLockTypeMap -> releaseLocksAndDeleteWalTransaction(keyLockTypeMap.keySet(), transactionId));
         try {
-            mutateOperations.mutateMany(mutationsByStore);
+            mutateOperations.mutateMany(mutationsByStore, wal);
             releaseLocksAndDeleteWalTransaction(keysLocked, transactionId);
         }
         catch (AerospikeException e) {
@@ -53,7 +53,7 @@ public class TransactionalOperations {
         writeAheadLogManager.deleteTransaction(transactionId);
     }
 
-    void releaseLocksAndDeleteWalTransactionOnError(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Value transactionId) throws BackendException {
+    void releaseLocksAndDeleteWalTransactionOnError(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Value transactionId) {
         List<Key> transactionLockKeys = lockOperations.filterKeysLockedByTransaction(locksByStore, transactionId);
         releaseLocksAndDeleteWalTransaction(transactionLockKeys, transactionId);
     }

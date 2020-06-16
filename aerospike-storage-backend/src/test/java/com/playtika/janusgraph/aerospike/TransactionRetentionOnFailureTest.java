@@ -26,10 +26,16 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.*;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.deleteAllRecords;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
+import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.GraphConsistencyAfterFailureTest.buildGraph;
 import static com.playtika.janusgraph.aerospike.GraphConsistencyAfterFailureTest.defineSchema;
-import static com.playtika.janusgraph.aerospike.TransactionRetentionOnFailureTest.FailingAerospikeStoreManager.*;
+import static com.playtika.janusgraph.aerospike.TransactionRetentionOnFailureTest.FailingAerospikeStoreManager.failsCheckValue;
+import static com.playtika.janusgraph.aerospike.TransactionRetentionOnFailureTest.FailingAerospikeStoreManager.failsMutate;
+import static com.playtika.janusgraph.aerospike.TransactionRetentionOnFailureTest.FailingAerospikeStoreManager.fixAll;
+import static com.playtika.janusgraph.aerospike.TransactionRetentionOnFailureTest.FailingAerospikeStoreManager.time;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_BACKEND;
 
@@ -162,11 +168,11 @@ public class TransactionRetentionOnFailureTest {
             protected MutateOperations buildMutateOperations(AerospikeOperations aerospikeOperations) {
                 return new BasicMutateOperations(aerospikeOperations){
                     @Override
-                    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) {
+                    public void mutateMany(Map<String, Map<Value, Map<Value, Value>>> mutationsByStore, boolean wal) {
                         if(failsMutate.get()){
                             throw new RuntimeException();
                         } else {
-                            super.mutateMany(mutationsByStore);
+                            super.mutateMany(mutationsByStore, wal);
                         }
                     }
                 };
