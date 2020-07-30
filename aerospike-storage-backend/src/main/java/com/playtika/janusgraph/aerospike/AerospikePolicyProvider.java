@@ -75,6 +75,7 @@ public class AerospikePolicyProvider {
         ScanPolicy scanPolicy = new ScanPolicy();
         scanPolicy.sendKey = true;
         scanPolicy.includeBinData = true;
+        scanPolicy.socketTimeout = configuration.get(AEROSPIKE_READ_TIMEOUT);
         scanPolicy.totalTimeout = configuration.get(AEROSPIKE_READ_TIMEOUT);
         return scanPolicy;
     }
