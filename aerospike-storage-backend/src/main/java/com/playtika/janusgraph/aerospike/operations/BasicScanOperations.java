@@ -46,9 +46,13 @@ public class BasicScanOperations implements ScanOperations {
             try {
                 aerospikeOperations.getClient().scanAll(scanPolicy,
                         aerospikeOperations.getNamespace(), aerospikeOperations.getSetName(storeName), keyIterator);
+                logger.info("Finished scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
+            } catch (Throwable t){
+                logger.error("Error while running scan operation storeName=[{}], query=[{}], tx=[{}]",
+                        storeName, query, txh, t);
+                throw t;
             } finally {
                 keyIterator.close();
-                logger.debug("Finished scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
             }
         });
 
