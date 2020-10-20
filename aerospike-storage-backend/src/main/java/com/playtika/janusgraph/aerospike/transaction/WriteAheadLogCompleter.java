@@ -144,7 +144,6 @@ public class WriteAheadLogCompleter {
         }
         catch (Throwable t) {
             logger.error("Error while running completeHangedTransactions()", t);
-            throw t;
         }
     }
 
