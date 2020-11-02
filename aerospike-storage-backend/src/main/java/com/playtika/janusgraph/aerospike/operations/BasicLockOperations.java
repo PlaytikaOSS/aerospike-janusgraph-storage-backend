@@ -22,20 +22,21 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
 import static com.playtika.janusgraph.aerospike.operations.LockOperations.LockType.LOCKED;
 import static com.playtika.janusgraph.aerospike.operations.LockOperations.LockType.SAME_TRANSACTION;
 import static com.playtika.janusgraph.aerospike.util.AsyncUtil.completeAll;
+import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.runAsync;
+import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 public class BasicLockOperations implements LockOperations {
 
@@ -69,12 +70,12 @@ public class BasicLockOperations implements LockOperations {
     public Set<Key> acquireLocks(Value transactionId,
                                  Map<String, Map<Value, Map<Value, Value>>> locksByStore,
                                  boolean checkTransactionId,
-                                 Consumer<Map<Key, LockType>> onErrorCleanup) throws BackendException {
+                                 Consumer<Collection<Key>> onErrorCleanup) throws BackendException {
         Map<Key, LockType> keysLocked = putLocks(transactionId, locksByStore, checkTransactionId, onErrorCleanup);
         try {
             checkExpectedValues(locksByStore, keysLocked);
         } catch (Throwable t){
-            onErrorCleanup.accept(keysLocked);
+            onErrorCleanup.accept(keysLocked.keySet());
             throw t;
         }
         return keysLocked.keySet();
@@ -84,48 +85,47 @@ public class BasicLockOperations implements LockOperations {
             Value transactionId,
             Map<String, Map<Value, Map<Value, Value>>> locksByStore,
             boolean checkTransactionId,
-            Consumer<Map<Key, LockType>> onErrorCleanup) throws BackendException {
+            Consumer<Collection<Key>> onErrorCleanup) throws BackendException {
 
-        Map<Key, LockType> keysLocked = new ConcurrentHashMap<>();
-        List<CompletableFuture<?>> futures = new ArrayList<>();
-        AtomicReference<AerospikeException> alreadyLockedError = new AtomicReference<>();
+        Map<Key, LockType> keysLocked = new HashMap<>();
+        List<Key> lockKeys = getLockKeys(locksByStore);
+        List<CompletableFuture<LockResult>> futures = new ArrayList<>(lockKeys.size());
 
         try {
-            for (Map.Entry<String, Map<Value, Map<Value, Value>>> locksForStore : locksByStore.entrySet()) {
-                String storeName = locksForStore.getKey();
-                for (Value key : locksForStore.getValue().keySet()) {
-                    futures.add(runAsync(() -> {
-                        if (alreadyLockedError.get() != null) {
-                            return;
-                        }
-                        Key lockKey = getLockKey(storeName, key);
+            for (Key lockKey : lockKeys) {
+                    futures.add(supplyAsync(() -> {
                         try {
                             LockType lockType = putLock(transactionId, lockKey, checkTransactionId);
-                            keysLocked.put(lockKey, lockType);
 
                             if (logger.isTraceEnabled()) {
                                 logger.trace("acquired lock key=[{}], txId=[{}]", lockKey, transactionId);
                             }
+                            return new LockResult(lockKey, lockType);
                         } catch (AerospikeException e) {
                             if (e.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
-                                alreadyLockedError.set(e);
                                 logger.info("already locked key=[{}], txId=[{}]", lockKey, transactionId);
-                            } else {
+                                return new LockResult(lockKey);
+                            }
+                            else {
                                 throw e;
                             }
                         }
                     }, aerospikeOperations.getAerospikeExecutor()));
-                }
             }
 
-            completeAll(futures);
+            allOf(futures.toArray(new CompletableFuture<?>[0])).join();
 
-            if (alreadyLockedError.get() != null) {
-                throw new TemporaryLockingException("Some locks not released yet", alreadyLockedError.get());
-            }
         } catch (Throwable t) {
-            onErrorCleanup.accept(keysLocked);
-            throw t;
+            onErrorCleanup.accept(lockKeys);
+            throw new PermanentLockingException(t);
+        }
+
+        for(CompletableFuture<LockResult> future : futures){
+            LockResult lockResult = future.join();
+            if (lockResult.alreadyLocked) {
+                throw new TemporaryLockingException(String.format("Some locks not released yet txId=[%s]", transactionId));
+            }
+            keysLocked.put(lockResult.getKey(), lockResult.lockType);
         }
 
         return keysLocked;
@@ -159,19 +159,7 @@ public class BasicLockOperations implements LockOperations {
     @Override
     public List<Key> filterKeysLockedByTransaction(
             Map<String, Map<Value, Map<Value, Value>>> locksByStore, Value transactionId){
-
-        List<Key> keys = getLockKeys(locksByStore);
-
-        List<Key> keysFiltered = new ArrayList<>(keys.size());
-        Key[] keysArray = keys.toArray(new Key[0]);
-        Record[] records = client.get(null, keysArray);
-        for(int i = 0, m = keysArray.length; i < m; i++){
-            Record record = records[i];
-            if(record != null && checkTransaction(record, transactionId)){
-                keysFiltered.add(keysArray[i]);
-            }
-        }
-        return keysFiltered;
+        return filterKeysLockedByTransaction(getLockKeys(locksByStore), transactionId);
     }
 
     private List<Key> getLockKeys(Map<String, Map<Value, Map<Value, Value>>> locksByStore){
@@ -185,12 +173,32 @@ public class BasicLockOperations implements LockOperations {
         return keys;
     }
 
+    @Override
+    public List<Key> filterKeysLockedByTransaction(
+            Collection<Key> keys, Value transactionId){
+
+        List<Key> keysFiltered = new ArrayList<>(keys.size());
+        Key[] keysArray = keys.toArray(new Key[0]);
+        Record[] records = client.get(null, keysArray);
+        for(int i = 0, m = keysArray.length; i < m; i++){
+            Record record = records[i];
+            if(record != null && checkTransaction(record, transactionId)){
+                keysFiltered.add(keysArray[i]);
+            }
+        }
+        return keysFiltered;
+    }
 
     @Override
-    public void releaseLocks(Collection<Key> keys) {
+    public void releaseLocks(Collection<Key> keys, Value transactionId) {
         List<CompletableFuture<?>> futures = new ArrayList<>(keys.size());
         for(Key lockKey : keys){
-            futures.add(runAsync(() -> client.delete(deleteLockPolicy, lockKey),
+            futures.add(runAsync(() -> {
+                        client.delete(deleteLockPolicy, lockKey);
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("released lock key=[{}], txId=[{}]", lockKey, transactionId);
+                        }
+                    },
                     aerospikeOperations.getAerospikeExecutor()));
         }
         completeAll(futures);
@@ -286,5 +294,33 @@ public class BasicLockOperations implements LockOperations {
         return aerospikeOperations.getKey(storeName + ".lock", value);
     }
 
+    private static class LockResult{
+        private final Key key;
+        private final LockType lockType;
+        private final boolean alreadyLocked;
 
+        public LockResult(Key key, LockType lockType) {
+            this.key = key;
+            this.lockType = lockType;
+            this.alreadyLocked = false;
+        }
+
+        public LockResult(Key key) {
+            this.key = key;
+            this.alreadyLocked = true;
+            this.lockType = null;
+        }
+
+        public Key getKey() {
+            return key;
+        }
+
+        public LockType getLockType() {
+            return lockType;
+        }
+
+        public boolean isAlreadyLocked() {
+            return alreadyLocked;
+        }
+    }
 }

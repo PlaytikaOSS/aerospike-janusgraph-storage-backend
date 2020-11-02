@@ -20,10 +20,13 @@ public interface LockOperations {
     Set<Key> acquireLocks(Value transactionId,
                           Map<String, Map<Value, Map<Value, Value>>> locksByStore,
                           boolean checkTransactionId,
-                          Consumer<Map<Key, LockType>> onErrorCleanup) throws BackendException;
+                          Consumer<Collection<Key>> onErrorCleanup) throws BackendException;
 
     List<Key> filterKeysLockedByTransaction(
             Map<String, Map<Value, Map<Value, Value>>> locksByStore, Value transactionId);
 
-    void releaseLocks(Collection<Key> keys);
+    List<Key> filterKeysLockedByTransaction(
+            Collection<Key> lockKeys, Value transactionId);
+
+    void releaseLocks(Collection<Key> keys, Value transactionId);
 }

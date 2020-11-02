@@ -54,7 +54,7 @@ public class WriteAheadLogCompleterTest {
         spyOperations.close();
 
         verify(spyOperations.transactionalOperationsSpy, times(4)).processAndDeleteTransaction(any(), any(), any(), anyBoolean());
-        verify(spyOperations.transactionalOperationsSpy).releaseLocksAndDeleteWalTransactionOnError(any(), any());
+        verify(spyOperations.transactionalOperationsSpy).releaseLocksAndDeleteWalTransactionOnError(any(Map.class), any());
     }
 
     @Test
