@@ -22,13 +22,13 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
 import static com.playtika.janusgraph.aerospike.operations.LockOperations.LockType.LOCKED;
@@ -87,7 +87,6 @@ public class BasicLockOperations implements LockOperations {
             boolean checkTransactionId,
             Consumer<Collection<Key>> onErrorCleanup) throws BackendException {
 
-        Map<Key, LockType> keysLocked = new HashMap<>();
         List<Key> lockKeys = getLockKeys(locksByStore);
         List<CompletableFuture<LockResult>> futures = new ArrayList<>(lockKeys.size());
 
@@ -101,14 +100,13 @@ public class BasicLockOperations implements LockOperations {
                                 logger.trace("acquired lock key=[{}], txId=[{}]", lockKey, transactionId);
                             }
                             return new LockResult(lockKey, lockType);
-                        } catch (AerospikeException e) {
-                            if (e.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
+                        } catch (Throwable t) {
+                            if (isKeyAlreadyLockedError(t)) {
                                 logger.info("already locked key=[{}], txId=[{}]", lockKey, transactionId);
-                                return new LockResult(lockKey);
+                            } else {
+                                logger.error("failed to lock key=[{}], txId=[{}]", lockKey, transactionId, t);
                             }
-                            else {
-                                throw e;
-                            }
+                            return new LockResult(lockKey, t);
                         }
                     }, aerospikeOperations.getAerospikeExecutor()));
             }
@@ -120,15 +118,38 @@ public class BasicLockOperations implements LockOperations {
             throw new PermanentLockingException(t);
         }
 
-        for(CompletableFuture<LockResult> future : futures){
-            LockResult lockResult = future.join();
-            if (lockResult.alreadyLocked) {
-                throw new TemporaryLockingException(String.format("Some locks not released yet txId=[%s]", transactionId));
+        Throwable error = checkForErrors(futures);
+        if(error != null){
+            if(isKeyAlreadyLockedError(error)){
+                throw new TemporaryLockingException(String.format("Some locks not released yet txId=[%s]", transactionId), error);
+            } else {
+                throw new PermanentLockingException(String.format("Failed to lock keys txId=[%s]", transactionId), error);
             }
-            keysLocked.put(lockResult.getKey(), lockResult.lockType);
         }
 
-        return keysLocked;
+        return futures.stream().collect(Collectors.toMap(
+                future -> future.join().getKey(),
+                future -> future.join().getLockType()));
+    }
+
+    private Throwable checkForErrors(List<CompletableFuture<LockResult>> futures){
+        Throwable alreadyLocked = null;
+        for(CompletableFuture<LockResult> future : futures){
+            LockResult lockResult = future.join();
+
+            if (lockResult.getError() != null) {
+                if(isKeyAlreadyLockedError(lockResult.getError())){
+                    alreadyLocked = lockResult.getError();
+                } else {
+                    return lockResult.getError();
+                }
+            }
+        }
+        return alreadyLocked;
+    }
+
+    private boolean isKeyAlreadyLockedError(Throwable t) {
+        return t instanceof AerospikeException && ((AerospikeException) t).getResultCode() == ResultCode.KEY_EXISTS_ERROR;
     }
 
     private LockType putLock(Value transactionId, Key lockKey, boolean checkTransactionId) {
@@ -294,20 +315,20 @@ public class BasicLockOperations implements LockOperations {
         return aerospikeOperations.getKey(storeName + ".lock", value);
     }
 
-    private static class LockResult{
+    private static class LockResult {
         private final Key key;
         private final LockType lockType;
-        private final boolean alreadyLocked;
+        private final Throwable error;
 
         public LockResult(Key key, LockType lockType) {
             this.key = key;
             this.lockType = lockType;
-            this.alreadyLocked = false;
+            this.error = null;
         }
 
-        public LockResult(Key key) {
+        public LockResult(Key key, Throwable error) {
             this.key = key;
-            this.alreadyLocked = true;
+            this.error = error;
             this.lockType = null;
         }
 
@@ -319,8 +340,8 @@ public class BasicLockOperations implements LockOperations {
             return lockType;
         }
 
-        public boolean isAlreadyLocked() {
-            return alreadyLocked;
+        public Throwable getError() {
+            return error;
         }
     }
 }
