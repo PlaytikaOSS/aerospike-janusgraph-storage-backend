@@ -8,6 +8,7 @@ import com.playtika.janusgraph.aerospike.operations.MutateOperations;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.PermanentBackendException;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,7 @@ public class TransactionalOperations {
                                      Map<String, Map<Value, Map<Value, Value>>> mutationsByStore,
                                      boolean wal) throws BackendException {
         Set<Key> keysLocked = lockOperations.acquireLocks(transactionId, locksByStore, wal,
-                keyLockTypeMap -> releaseLocksAndDeleteWalTransaction(keyLockTypeMap.keySet(), transactionId));
+                lockKeys -> releaseLocksAndDeleteWalTransactionOnError(lockKeys, transactionId));
         try {
             mutateOperations.mutateMany(mutationsByStore, wal);
             releaseLocksAndDeleteWalTransaction(keysLocked, transactionId);
@@ -49,8 +50,13 @@ public class TransactionalOperations {
     }
 
     private void releaseLocksAndDeleteWalTransaction(Collection<Key> keysLocked, Value transactionId) {
-        lockOperations.releaseLocks(keysLocked);
+        lockOperations.releaseLocks(keysLocked, transactionId);
         writeAheadLogManager.deleteTransaction(transactionId);
+    }
+
+    void releaseLocksAndDeleteWalTransactionOnError(Collection<Key> lockKeys, Value transactionId) {
+        List<Key> transactionLockKeys = lockOperations.filterKeysLockedByTransaction(lockKeys, transactionId);
+        releaseLocksAndDeleteWalTransaction(transactionLockKeys, transactionId);
     }
 
     void releaseLocksAndDeleteWalTransactionOnError(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Value transactionId) {

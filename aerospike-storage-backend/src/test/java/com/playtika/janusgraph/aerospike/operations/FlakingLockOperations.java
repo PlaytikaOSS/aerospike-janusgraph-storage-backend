@@ -29,7 +29,7 @@ public class FlakingLockOperations implements LockOperations {
     public Set<Key> acquireLocks(Value transactionId,
                                  Map<String, Map<Value, Map<Value, Value>>> locksByStore,
                                  boolean checkTransactionId,
-                                 Consumer<Map<Key, LockType>> onErrorCleanup) throws BackendException {
+                                 Consumer<Collection<Key>> onErrorCleanup) throws BackendException {
 
         if(failsAcquire.get()) {
             Map<String, Map<Value, Map<Value, Value>>> partialLocksByStore = selectFlaking(locksByStore,
@@ -50,14 +50,19 @@ public class FlakingLockOperations implements LockOperations {
     }
 
     @Override
-    public void releaseLocks(Collection<Key> keys) {
+    public List<Key> filterKeysLockedByTransaction(Collection<Key> keys, Value transactionId) {
+        return lockOperations.filterKeysLockedByTransaction(keys, transactionId);
+    }
+
+    @Override
+    public void releaseLocks(Collection<Key> keys, Value transactionId) {
         if(failsRelease.get()){
             Set<Key> keysReleased = selectFlaking(keys, "releaseLocks failed flaking for key [{}]");
-            lockOperations.releaseLocks(keysReleased);
+            lockOperations.releaseLocks(keysReleased, transactionId);
 
             throw new RuntimeException();
         } else {
-            lockOperations.releaseLocks(keys);
+            lockOperations.releaseLocks(keys, transactionId);
         }
     }
 }

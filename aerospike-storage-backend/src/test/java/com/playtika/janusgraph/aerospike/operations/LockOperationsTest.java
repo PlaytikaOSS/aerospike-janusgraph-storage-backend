@@ -147,8 +147,9 @@ public class LockOperationsTest {
     }
 
     private Set<Key> execute(UUID transactionId, Map<Value, Value> expectedValues) throws BackendException {
-        return lockOperations.acquireLocks(Value.get(getBytesFromUUID(transactionId)),
+        Value transactionIdValue = Value.get(getBytesFromUUID(transactionId));
+        return lockOperations.acquireLocks(transactionIdValue,
                 singletonMap("test", singletonMap(Value.get("test_key"), expectedValues)), true,
-                keyLockTypeMap -> lockOperations.releaseLocks(keyLockTypeMap.keySet()));
+                lockKeys -> lockOperations.releaseLocks(lockKeys, transactionIdValue));
     }
 }
