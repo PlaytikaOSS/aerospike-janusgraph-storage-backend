@@ -120,6 +120,7 @@ public class BasicLockOperations implements LockOperations {
 
         Throwable error = checkForErrors(futures);
         if(error != null){
+            onErrorCleanup.accept(lockKeys);
             if(isKeyAlreadyLockedError(error)){
                 throw new TemporaryLockingException(String.format("Some locks not released yet txId=[%s]", transactionId), error);
             } else {
