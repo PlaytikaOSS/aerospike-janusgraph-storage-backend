@@ -163,7 +163,9 @@ public class BasicLockOperations implements LockOperations {
                 //check for same transaction
                 if (e.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
                     Record record = client.get(null, lockKey);
-                    if (checkTransaction(record, transactionId)) return SAME_TRANSACTION;
+                    if (record != null && checkTransaction(record, transactionId)) {
+                        return SAME_TRANSACTION;
+                    }
                 }
                 throw e;
             }
