@@ -29,7 +29,7 @@ public class ConfigOptions {
     public static final ConfigOption<Long> WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD = new ConfigOption<>(STORAGE_NS,
             "wal-threshold", "After this period of time (in ms) transaction in WAL considered to be stale " +
             "and can be re-processed",
-            ConfigOption.Type.LOCAL, 60000L);
+            ConfigOption.Type.LOCAL, 600000L);
 
     public static final ConfigOption<Boolean> TEST_ENVIRONMENT = new ConfigOption<>(STORAGE_NS,
             "test-environment", "Weather this production or test environment",
