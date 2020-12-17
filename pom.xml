@@ -86,7 +86,7 @@
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
         <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
         <embedded-aerospike.version>1.19</embedded-aerospike.version>
-        <awaitility.version>3.1.2</awaitility.version>
+        <awaitility.version>4.0.3</awaitility.version>
 
     </properties>
 
