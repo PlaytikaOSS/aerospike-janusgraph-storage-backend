@@ -5,6 +5,7 @@ import com.aerospike.client.Record;
 import com.aerospike.client.cdt.MapOperation;
 import com.aerospike.client.cdt.MapReturnType;
 import com.aerospike.client.policy.WritePolicy;
+import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.EntryList;
 import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.diskstorage.StaticBuffer;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
+import static com.playtika.janusgraph.aerospike.util.ReactorUtil.block;
 
 public class ReadOperations {
 
@@ -36,8 +38,8 @@ public class ReadOperations {
         this.getPolicy = aerospikeOperations.getAerospikePolicyProvider().writePolicy();
     }
 
-    public Map<StaticBuffer, EntryList> getSlice(String storeName, List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) {
-        return getSliceInParallel(storeName, keys, query, txh).block();
+    public Map<StaticBuffer, EntryList> getSlice(String storeName, List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
+        return block(getSliceInParallel(storeName, keys, query, txh));
     }
 
     private Mono<Map<StaticBuffer,EntryList>> getSliceInParallel(String storeName, List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) {

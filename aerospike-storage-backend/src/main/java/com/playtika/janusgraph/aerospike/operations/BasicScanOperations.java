@@ -13,9 +13,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.google.common.util.concurrent.MoreExecutors.shutdownAndAwaitTermination;
-import static com.playtika.janusgraph.aerospike.util.AsyncUtil.WAIT_TIMEOUT_IN_SECONDS;
 
 public class BasicScanOperations implements ScanOperations {
+
+    public static final int WAIT_TIMEOUT_IN_SECONDS = 4;
 
     private static Logger logger = LoggerFactory.getLogger(BasicScanOperations.class);
 

@@ -38,13 +38,14 @@ import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETE
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
+import static com.playtika.janusgraph.aerospike.util.ReactorUtil.block;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
 
 
 @PreInitializeConfigOptions
 public class AerospikeStoreManager extends AbstractStoreManager implements KeyColumnValueStoreManager {
 
-    private static Logger logger = LoggerFactory.getLogger(AerospikeStoreManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(AerospikeStoreManager.class);
 
     public static final int AEROSPIKE_BUFFER_SIZE = Integer.MAX_VALUE / 2;
 
@@ -119,18 +120,17 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     }
 
     @Override
-    public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) {
+    public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) throws BackendException{
         logger.trace("mutateMany(tx:{}, {})", txh, mutations);
 
         Map<String, Map<Value, Map<Value, Value>>> locksByStore = ((AerospikeTransaction) txh).getLocksByStoreKeyColumn();
 
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
 
-        operations.batchUpdater().update(new BatchUpdate(
+        block(operations.batchUpdater().update(new BatchUpdate(
                 new BatchLocks(locksByStore, operations.getAerospikeOperations()),
                 new BatchUpdates(mutationsByStore)))
-                .onErrorMap(ErrorMapper.INSTANCE)
-        .block();
+                .onErrorMap(ErrorMapper.INSTANCE));
     }
 
     private static Map<String, Map<Value, Map<Value, Value>>> groupMutationsByStoreKeyColumn(
