@@ -30,13 +30,14 @@ import java.util.List;
 import java.util.Map;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
+import static com.playtika.janusgraph.aerospike.util.ReactorUtil.block;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 
 public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
-    private static Logger logger = LoggerFactory.getLogger(AerospikeKeyColumnValueStore.class);
+    private static final Logger logger = LoggerFactory.getLogger(AerospikeKeyColumnValueStore.class);
 
     private final String storeName;
     private final ReadOperations readOperations;
@@ -76,7 +77,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
     }
 
     @Override
-    public Map<StaticBuffer,EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) {
+    public Map<StaticBuffer,EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
         logger.trace("getSlice({}, tx:{}, {}, start:{}, end:{})",
                 storeName, txh, keys, query.getSliceStart(), query.getSliceEnd());
 
@@ -84,10 +85,10 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
     }
 
     @Override
-    public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) {
+    public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) throws BackendException{
         logger.trace("getSlice({}, tx:{}, {})", storeName, txh, query);
 
-        return readOperations.getSlice(storeName, query, txh).block().getValue();
+        return block(readOperations.getSlice(storeName, query, txh)).getValue();
     }
 
     @Override
@@ -101,7 +102,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
         //no need in transactional logic
         if(transaction.getLocks().isEmpty()){
-            mutateOperations.mutate(storeName, keyValue, mutationMap, false).block();
+            block(mutateOperations.mutate(storeName, keyValue, mutationMap, false));
             return;
         }
 
@@ -120,11 +121,10 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = singletonMap(storeName,
                 singletonMap(keyValue, mutationMap));
 
-        batchUpdater.update(new BatchUpdate(
+        block(batchUpdater.update(new BatchUpdate(
                 new BatchLocks(locksByStore, aerospikeOperations),
                 new BatchUpdates(mutationsByStore)))
-                .onErrorMap(ErrorMapper.INSTANCE)
-        .block();
+                .onErrorMap(ErrorMapper.INSTANCE));
     }
 
     static Map<Value, Value> mutationToMap(KCVMutation mutation){

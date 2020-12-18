@@ -11,6 +11,8 @@ import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
 import org.janusgraph.diskstorage.util.RecordIterator;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.janusgraph.diskstorage.util.StaticArrayEntry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -26,6 +28,8 @@ import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.E
  * Should be used for test purposes only
  */
 public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
+
+    private static Logger logger = LoggerFactory.getLogger(AerospikeKeyIterator.class);
 
     private final SliceQuery query;
     private final BlockingQueue<KeyRecord> queue = new LinkedBlockingQueue<>(100);
@@ -116,7 +120,8 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
     @Override
     public void scanCallback(Key key, Record record) throws AerospikeException {
         if (closed.get()) {
-            throw new AerospikeException("AerospikeKeyIterator get closed, terminate scan");
+            logger.info("AerospikeKeyIterator get closed, terminate scan");
+            throw new AerospikeException.ScanTerminated();
         }
         try {
             queue.put(new KeyRecord(key, record));

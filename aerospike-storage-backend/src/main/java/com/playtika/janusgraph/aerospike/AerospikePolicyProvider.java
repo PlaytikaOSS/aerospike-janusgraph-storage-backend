@@ -21,7 +21,7 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.AU
 public class AerospikePolicyProvider {
 
     public static final int MAX_RETRIES = 0;
-    private Configuration configuration;
+    private final Configuration configuration;
     private EventLoops eventLoops;
 
     public AerospikePolicyProvider(Configuration configuration) {
@@ -85,6 +85,7 @@ public class AerospikePolicyProvider {
         ScanPolicy scanPolicy = new ScanPolicy();
         scanPolicy.sendKey = true;
         scanPolicy.includeBinData = true;
+        scanPolicy.socketTimeout = configuration.get(AEROSPIKE_READ_TIMEOUT);
         scanPolicy.totalTimeout = configuration.get(AEROSPIKE_READ_TIMEOUT);
         return scanPolicy;
     }

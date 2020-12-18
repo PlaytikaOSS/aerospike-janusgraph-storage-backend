@@ -7,6 +7,7 @@ import com.aerospike.client.async.NioEventLoops;
 import com.aerospike.client.reactor.AerospikeReactorClient;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
+import org.janusgraph.diskstorage.BackendException;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.testcontainers.containers.GenericContainer;
@@ -15,6 +16,7 @@ import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PRO
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeClient;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
+import static com.playtika.janusgraph.aerospike.util.ReactorUtil.block;
 import static java.util.Collections.singletonMap;
 
 public class MutateOperationsTest {
@@ -38,33 +40,33 @@ public class MutateOperationsTest {
 
 
     @Test
-    public void shouldDeleteKeyIdempotentlyIfWal()  {
+    public void shouldDeleteKeyIdempotentlyIfWal() throws BackendException {
         //when
-        mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, COLUMN_VALUE), true).block();
+        block(mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, COLUMN_VALUE), true));
 
         //then
-        mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL), true).block();
+        block(mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, Value.NULL), true));
 
         //expect
-        mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL), true).block();
+        block(mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, Value.NULL), true));
     }
 
     @Test(expected = AerospikeException.class)
-    public void shouldFailOnDeleteIfNotWal()  {
+    public void shouldFailOnDeleteIfNotWal() throws BackendException {
         //when
-        mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, COLUMN_VALUE), false).block();
+        block(mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, COLUMN_VALUE), false));
 
         //then
-        mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL), false).block();
+        block(mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, Value.NULL), false));
 
         //expect
-        mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL), false).block();
+        block(mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, Value.NULL), false));
     }
 
 }
