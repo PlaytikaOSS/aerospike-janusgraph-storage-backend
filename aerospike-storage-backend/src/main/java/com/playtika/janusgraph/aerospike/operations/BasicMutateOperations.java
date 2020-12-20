@@ -39,7 +39,7 @@ public class BasicMutateOperations implements MutateOperations{
     }
 
     @Override
-    public Mono<Void> mutate(String storeName, Value key, Map<Value, Value> mutation, boolean calledByWal) {
+    public Mono<Void> mutate(String storeName, Value key, Map<Value, Value> mutation) {
         Key aerospikeKey = aerospikeOperations.getKey(storeName, key);
         List<Operation> operations = new ArrayList<>(3);
         List<Value> keysToRemove = new ArrayList<>(mutation.size());
@@ -71,7 +71,6 @@ public class BasicMutateOperations implements MutateOperations{
         IAerospikeReactorClient client = aerospikeOperations.getReactorClient();
         return client.operate(mutatePolicy, aerospikeKey, operations.toArray(new Operation[0]))
                 .onErrorResume(throwable -> throwable instanceof AerospikeException
-                        && calledByWal
                         && ((AerospikeException)throwable).getResultCode() == ResultCode.KEY_NOT_FOUND_ERROR,
                         throwable -> Mono.empty())
                 .flatMap(keyRecord -> {

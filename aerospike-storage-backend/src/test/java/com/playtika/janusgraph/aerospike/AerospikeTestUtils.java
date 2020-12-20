@@ -41,7 +41,7 @@ public class AerospikeTestUtils {
         //!!! need to prevent small batches mutations as we use deferred locking approach !!!
         config.set(BUFFER_SIZE, AEROSPIKE_BUFFER_SIZE);
         config.set(TEST_ENVIRONMENT, true); //for test purposes only
-        config.set(ConfigOptions.SCAN_PARALLELISM, 1);
+        config.set(ConfigOptions.SCAN_PARALLELISM, 100);
         return config;
     }
 

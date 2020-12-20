@@ -102,7 +102,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
         //no need in transactional logic
         if(transaction.getLocks().isEmpty()){
-            block(mutateOperations.mutate(storeName, keyValue, mutationMap, false));
+            block(mutateOperations.mutate(storeName, keyValue, mutationMap));
             return;
         }
 
@@ -125,6 +125,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
                 new BatchLocks(locksByStore, aerospikeOperations),
                 new BatchUpdates(mutationsByStore)))
                 .onErrorMap(ErrorMapper.INSTANCE));
+        transaction.close();
     }
 
     static Map<Value, Value> mutationToMap(KCVMutation mutation){

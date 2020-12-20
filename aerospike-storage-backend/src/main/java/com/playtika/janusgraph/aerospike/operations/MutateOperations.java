@@ -7,5 +7,5 @@ import java.util.Map;
 
 public interface MutateOperations {
 
-    Mono<Void> mutate(String storeName, Value key, Map<Value, Value> mutation, boolean calledByWal);
+    Mono<Void> mutate(String storeName, Value key, Map<Value, Value> mutation);
 }

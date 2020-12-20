@@ -40,33 +40,18 @@ public class MutateOperationsTest {
 
 
     @Test
-    public void shouldDeleteKeyIdempotentlyIfWal() throws BackendException {
+    public void shouldDeleteKeyIdempotently() throws BackendException {
         //when
         block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, COLUMN_VALUE), true));
+                singletonMap(COLUMN_NAME, COLUMN_VALUE)));
 
         //then
         block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL), true));
+                singletonMap(COLUMN_NAME, Value.NULL)));
 
         //expect
         block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL), true));
-    }
-
-    @Test(expected = AerospikeException.class)
-    public void shouldFailOnDeleteIfNotWal() throws BackendException {
-        //when
-        block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, COLUMN_VALUE), false));
-
-        //then
-        block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL), false));
-
-        //expect
-        block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL), false));
+                singletonMap(COLUMN_NAME, Value.NULL)));
     }
 
 }

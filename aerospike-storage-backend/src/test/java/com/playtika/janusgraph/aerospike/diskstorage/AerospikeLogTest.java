@@ -12,24 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package com.playtika.janusgraph.aerospike;
+package com.playtika.janusgraph.aerospike.diskstorage;
 
-import org.janusgraph.diskstorage.configuration.WriteConfiguration;
-import org.janusgraph.graphdb.JanusGraphPartitionGraphTest;
+import com.playtika.janusgraph.aerospike.AerospikeStoreManager;
+import org.janusgraph.TestCategory;
+import org.janusgraph.diskstorage.log.KCVSLogTest;
 import org.junit.ClassRule;
+import org.junit.jupiter.api.Tag;
 import org.testcontainers.containers.GenericContainer;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 
-public class AerospikePartitionGraphTest extends JanusGraphPartitionGraphTest {
+@Tag(TestCategory.SERIAL_TESTS)
+
+public class AerospikeLogTest extends KCVSLogTest {
 
     @ClassRule
-    public static GenericContainer container = getAerospikeContainer();
+    public static final GenericContainer container = getAerospikeContainer();
 
     @Override
-    public WriteConfiguration getBaseConfiguration() {
-        return getAerospikeConfiguration(container).getConfiguration();
+    public AerospikeStoreManager openStorageManager() {
+        return new AerospikeStoreManager(getAerospikeConfiguration(container));
     }
 
 }

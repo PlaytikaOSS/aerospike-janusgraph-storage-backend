@@ -123,7 +123,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     public void mutateMany(Map<String, Map<StaticBuffer, KCVMutation>> mutations, StoreTransaction txh) throws BackendException{
         logger.trace("mutateMany(tx:{}, {})", txh, mutations);
 
-        Map<String, Map<Value, Map<Value, Value>>> locksByStore = ((AerospikeTransaction) txh).getLocksByStoreKeyColumn();
+        AerospikeTransaction transaction = (AerospikeTransaction) txh;
+        Map<String, Map<Value, Map<Value, Value>>> locksByStore = transaction.getLocksByStoreKeyColumn();
 
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
 
@@ -131,6 +132,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 new BatchLocks(locksByStore, operations.getAerospikeOperations()),
                 new BatchUpdates(mutationsByStore)))
                 .onErrorMap(ErrorMapper.INSTANCE));
+        transaction.close();
     }
 
     private static Map<String, Map<Value, Map<Value, Value>>> groupMutationsByStoreKeyColumn(
