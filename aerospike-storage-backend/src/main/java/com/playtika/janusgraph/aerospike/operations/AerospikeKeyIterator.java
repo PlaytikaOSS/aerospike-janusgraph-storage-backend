@@ -34,8 +34,9 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
     private final SliceQuery query;
     private final BlockingQueue<KeyRecord> queue = new LinkedBlockingQueue<>(100);
     private KeyRecord next;
-    private KeyRecord current;
+    private Iterator<Entry> entriesIt;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private Thread thread;
 
     private static final KeyRecord TERMINATE_VALUE = new KeyRecord(null, null);
 
@@ -45,17 +46,6 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
 
     @Override
     public RecordIterator<Entry> getEntries() {
-
-        final Iterator<Entry> entriesIt = current.record.getMap(ENTRIES_BIN_NAME).entrySet().stream()
-                .map(o -> {
-                    Map.Entry<ByteBuffer, byte[]> entry = (Map.Entry<ByteBuffer, byte[]>)o;
-                    final StaticBuffer column = StaticArrayBuffer.of(entry.getKey());
-                    final StaticBuffer value = StaticArrayBuffer.of(entry.getValue());
-                    return StaticArrayEntry.of(column, value);
-                })
-                .filter(entry -> query.contains(entry.getColumn()))
-                .limit(query.getLimit())
-                .iterator();
 
         return new RecordIterator<Entry>() {
             @Override
@@ -79,6 +69,7 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
         closed.set(true);
         try {
             queue.put(TERMINATE_VALUE);
+            thread.interrupt();
         } catch (InterruptedException e) {
             throw new RuntimeException();
         }
@@ -91,7 +82,7 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
                 return false;
             }
 
-            return next != null || (next = queue.take()) != TERMINATE_VALUE;
+            return next != null || (next = takeNext()) != TERMINATE_VALUE;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -101,7 +92,7 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
     public StaticBuffer next() {
         if(next == null){
             try {
-                next = queue.take();
+                next = takeNext();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -112,9 +103,34 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
         try {
             return keyToBuffer(next.key);
         } finally {
-            current = next;
             next = null;
         }
+    }
+
+    private KeyRecord takeNext() throws InterruptedException {
+        do {
+            next = queue.take();
+            if (next == TERMINATE_VALUE) {
+                entriesIt = null;
+                break;
+            }
+            entriesIt = entriesIt(next);
+        } while(!entriesIt.hasNext());
+
+        return next;
+    }
+
+    private Iterator<Entry> entriesIt(KeyRecord keyRecord){
+        return keyRecord.record.getMap(ENTRIES_BIN_NAME).entrySet().stream()
+                .map(o -> {
+                    Map.Entry<ByteBuffer, byte[]> entry = (Map.Entry<ByteBuffer, byte[]>)o;
+                    final StaticBuffer column = StaticArrayBuffer.of(entry.getKey());
+                    final StaticBuffer value = StaticArrayBuffer.of(entry.getValue());
+                    return StaticArrayEntry.of(column, value);
+                })
+                .filter(entry -> query.contains(entry.getColumn()))
+                .limit(query.getLimit())
+                .iterator();
     }
 
     @Override
@@ -142,5 +158,9 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
             this.key = key;
             this.record = record;
         }
+    }
+
+    public void setThread(Thread thread) {
+        this.thread = thread;
     }
 }

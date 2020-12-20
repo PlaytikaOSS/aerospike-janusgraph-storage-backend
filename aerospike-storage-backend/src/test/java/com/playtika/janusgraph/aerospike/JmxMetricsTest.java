@@ -8,6 +8,7 @@ import org.janusgraph.example.GraphOfTheGodsFactory;
 import org.janusgraph.util.stats.MetricManager;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.testcontainers.containers.GenericContainer;
@@ -36,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
 import static org.junit.Assert.assertEquals;
 
+@Ignore
 public class JmxMetricsTest {
 
     private static final String JANUSGRAPH_JMX_DOMAIN = "janusgraph";

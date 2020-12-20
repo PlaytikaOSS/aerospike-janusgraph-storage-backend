@@ -8,5 +8,4 @@ public interface ScanOperations {
 
     KeyIterator getKeys(String storeName, SliceQuery query, StoreTransaction txh);
 
-    void close();
 }

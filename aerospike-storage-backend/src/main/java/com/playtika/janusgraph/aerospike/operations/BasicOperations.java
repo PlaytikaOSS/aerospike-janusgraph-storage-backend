@@ -169,9 +169,8 @@ public class BasicOperations implements Operations {
     protected ScanOperations buildScanOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
         Integer scanParallelism = configuration.get(SCAN_PARALLELISM);
         if(scanParallelism > 0){
-            ExecutorService scanExecutor = buildExecutor(0, scanParallelism, "scan");
-            return new BasicScanOperations(aerospikeOperations, scanExecutor);
-
+            return new BasicScanOperations(aerospikeOperations, new NamedThreadFactory(
+                    JANUS_AEROSPIKE_THREAD_GROUP_NAME, "scan"));
         } else {
             return new UnsupportedScanOperations();
         }
@@ -182,7 +181,6 @@ public class BasicOperations implements Operations {
         if(writeAheadLogCompleter != null) {
             writeAheadLogCompleter.shutdown();
         }
-        scanOperations.close();
         aerospikeOperations.close();
     }
 }

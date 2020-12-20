@@ -13,7 +13,7 @@ import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.g
 
 final class AerospikeTransaction extends AbstractStoreTransaction {
 
-    private final List<DeferredLock> locks = new ArrayList<>();
+    private List<DeferredLock> locks = new ArrayList<>();
 
     AerospikeTransaction(final BaseTransactionConfig config) {
         super(config);
@@ -21,12 +21,16 @@ final class AerospikeTransaction extends AbstractStoreTransaction {
 
     @Override
     public void commit() {
-        locks.clear();
+        close();
     }
 
     @Override
     public void rollback() {
         locks.clear();
+    }
+
+    public void close(){
+        locks = null;
     }
 
     void addLock(DeferredLock lock){

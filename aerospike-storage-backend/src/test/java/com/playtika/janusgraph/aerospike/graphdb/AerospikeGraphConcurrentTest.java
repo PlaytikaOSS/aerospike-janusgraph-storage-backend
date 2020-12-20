@@ -12,33 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package com.playtika.janusgraph.aerospike;
+package com.playtika.janusgraph.aerospike.graphdb;
 
+import org.janusgraph.TestCategory;
 import org.janusgraph.diskstorage.configuration.WriteConfiguration;
 import org.janusgraph.graphdb.JanusGraphConcurrentTest;
 import org.junit.ClassRule;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Tag;
 import org.testcontainers.containers.GenericContainer;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 
+@Tag(TestCategory.PERFORMANCE_TESTS)
 public class AerospikeGraphConcurrentTest extends JanusGraphConcurrentTest {
 
     @ClassRule
-    public static GenericContainer container = getAerospikeContainer();
+    public static final GenericContainer container = getAerospikeContainer();
 
     @Override
     public WriteConfiguration getConfiguration() {
         return getAerospikeConfiguration(container).getConfiguration();
     }
-
-    @Ignore //TODO takes endless time
-    @Override
-    @Test
-    public void testStandardIndexVertexPropertyReads(){
-
-    }
-
 }

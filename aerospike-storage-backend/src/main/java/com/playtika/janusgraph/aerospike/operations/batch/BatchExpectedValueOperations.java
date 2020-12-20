@@ -13,6 +13,7 @@ import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.lock.PermanentLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -54,8 +55,8 @@ public class BatchExpectedValueOperations
                     return checkColumnValues(keyToCheck, expectedValue.values)
                             .map(successCheck -> {
                                 if(!successCheck){
-                                    throw new PermanentLockingException(String.format(
-                                            "Unexpected value for key=[%s]", keyToCheck));
+                                    throw Exceptions.propagate(new PermanentLockingException(String.format(
+                                            "Unexpected value for key=[%s]", keyToCheck)));
                                 }
                                 return true;
                             });

@@ -17,7 +17,7 @@ public class BatchUpdateOperations implements UpdateOperations<BatchUpdates> {
     public Mono<Void> updateMany(BatchUpdates batchUpdates, boolean calledByWal) {
         return Flux.fromIterable(batchUpdates.getUpdates())
                 .flatMap(updateValue -> mutateOperations.mutate(
-                        updateValue.storeName, updateValue.key, updateValue.values, calledByWal))
+                        updateValue.storeName, updateValue.key, updateValue.values))
                 .then();
    }
 }

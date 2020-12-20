@@ -11,6 +11,4 @@ public class UnsupportedScanOperations implements ScanOperations {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public void close() {}
 }
