@@ -34,11 +34,13 @@ import java.util.List;
 import java.util.Map;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.mutationToMap;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.CHECK_ALL_MUTATIONS_FOR_LOCKS;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
 import static com.playtika.janusgraph.aerospike.util.ReactorUtil.block;
+import static java.util.Collections.emptyMap;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
 
 
@@ -52,6 +54,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     private final StoreFeatures features;
 
     private final Operations operations;
+    private final boolean checkMutationsForLocks;
 
     public AerospikeStoreManager(Configuration configuration) {
         super(configuration);
@@ -66,6 +69,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         if(configuration.get(START_WAL_COMPLETER)) {
             operations.getWriteAheadLogCompleter().start();
         }
+
+        this.checkMutationsForLocks = configuration.get(CHECK_ALL_MUTATIONS_FOR_LOCKS);
     }
 
     protected BasicOperations initOperations(Configuration configuration) {
@@ -128,11 +133,31 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
 
+        if(checkMutationsForLocks) {
+            checkMutationsForLocks(locksByStore, mutationsByStore);
+        }
+
         block(operations.batchUpdater().update(new BatchUpdate(
                 new BatchLocks(locksByStore, operations.getAerospikeOperations()),
                 new BatchUpdates(mutationsByStore)))
                 .onErrorMap(ErrorMapper.INSTANCE));
         transaction.close();
+    }
+
+    protected void checkMutationsForLocks(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) {
+        for (Map.Entry<String, Map<Value, Map<Value, Value>>> storeMutations : mutationsByStore.entrySet()) {
+            Map<Value, Map<Value, Value>> storeLocks = locksByStore.get(storeMutations.getKey());
+            for (Map.Entry<Value, Map<Value, Value>> keyMutations : storeMutations.getValue().entrySet()) {
+                Map<Value, Value> keyLocks = storeLocks.getOrDefault(keyMutations.getKey(), emptyMap());
+                for(Value columnMutated : keyMutations.getValue().keySet()){
+                    if(!keyLocks.containsKey(columnMutated)){
+                        logger.warn("Mutating not locked store=[{}], key=[{}], column=[{}]",
+                                storeMutations.getKey(), keyMutations.getKey(), columnMutated);
+                        throw new IllegalStateException("Mutating not locked");
+                    }
+                }
+            }
+        }
     }
 
     private static Map<String, Map<Value, Map<Value, Value>>> groupMutationsByStoreKeyColumn(
