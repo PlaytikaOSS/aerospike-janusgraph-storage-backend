@@ -32,9 +32,9 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.mutationToMap;
-import static com.playtika.janusgraph.aerospike.ConfigOptions.CHECK_ALL_MUTATIONS_FOR_LOCKS;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
@@ -54,7 +54,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     private final StoreFeatures features;
 
     private final Operations operations;
-    private final boolean checkMutationsForLocks;
+    public static BiConsumer<Map<String, Map<Value, Map<Value, Value>>>, Map<String, Map<Value, Map<Value, Value>>>> transactionValidator;
 
     public AerospikeStoreManager(Configuration configuration) {
         super(configuration);
@@ -69,8 +69,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         if(configuration.get(START_WAL_COMPLETER)) {
             operations.getWriteAheadLogCompleter().start();
         }
-
-        this.checkMutationsForLocks = configuration.get(CHECK_ALL_MUTATIONS_FOR_LOCKS);
     }
 
     protected BasicOperations initOperations(Configuration configuration) {
@@ -103,6 +101,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     @Override
     public StoreTransaction beginTransaction(final BaseTransactionConfig config) {
         AerospikeTransaction txh = new AerospikeTransaction(config);
+        txh.setTransactionValidator(transactionValidator);
         logger.trace("beginTransaction(tx:{})", txh);
         return txh;
     }
@@ -133,8 +132,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
 
-        if(checkMutationsForLocks) {
-            checkMutationsForLocks(locksByStore, mutationsByStore);
+        if(transaction.getTransactionValidator() != null) {
+            transaction.getTransactionValidator().accept(locksByStore, mutationsByStore);
         }
 
         block(operations.batchUpdater().update(new BatchUpdate(
@@ -144,7 +143,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         transaction.close();
     }
 
-    protected void checkMutationsForLocks(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) {
+    public static void checkMutationsForLocks(Map<String, Map<Value, Map<Value, Value>>> locksByStore, Map<String, Map<Value, Map<Value, Value>>> mutationsByStore) {
         for (Map.Entry<String, Map<Value, Map<Value, Value>>> storeMutations : mutationsByStore.entrySet()) {
             Map<Value, Map<Value, Value>> storeLocks = locksByStore.get(storeMutations.getKey());
             for (Map.Entry<Value, Map<Value, Value>> keyMutations : storeMutations.getValue().entrySet()) {

@@ -50,9 +50,4 @@ public class ConfigOptions {
             "aerospike-write-timeout", "Total transaction timeout in milliseconds to aerospike write operations." +
             "If timeout is zero, there will be no time limit",
             ConfigOption.Type.LOCAL, 0);
-
-    public static final ConfigOption<Boolean> CHECK_ALL_MUTATIONS_FOR_LOCKS = new ConfigOption<>(STORAGE_NS,
-            "check-mutations-for-locks", "Check that each mutated key-column has lock.",
-            ConfigOption.Type.LOCAL, false);
-
 }
