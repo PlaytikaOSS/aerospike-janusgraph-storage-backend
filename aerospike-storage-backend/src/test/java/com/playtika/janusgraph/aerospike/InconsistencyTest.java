@@ -12,6 +12,7 @@ import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.schema.ConsistencyModifier;
 import org.janusgraph.core.schema.JanusGraphIndex;
 import org.janusgraph.core.schema.JanusGraphManagement;
+import org.janusgraph.diskstorage.locking.PermanentLockingException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -22,6 +23,7 @@ import org.testcontainers.containers.GenericContainer;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
@@ -29,12 +31,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class InconsistencyTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(InconsistencyTest.class);
-
     public static final String SOURCE = "source";
     public static final String TARGET = "target";
     public static final String RELATION = "relation";
     public static final String OID = "OID";
+    public static final String VERSION = "VERSION";
     @Rule
     public GenericContainer container = getAerospikeContainer();
 
@@ -223,4 +224,188 @@ public class InconsistencyTest {
         tx.commit();
 
     }
+
+    @Test
+    public void shouldNotProduceGhostVertexViaHangedEdge() throws InterruptedException {
+
+        JanusGraphManagement management = graph.openManagement();
+
+        management.makeVertexLabel(SOURCE).make();
+        management.makeVertexLabel(TARGET).make();
+
+        PropertyKey versionPropertyKey = management.makePropertyKey(VERSION).dataType(Long.class).make();
+        management.setConsistency(versionPropertyKey , ConsistencyModifier.LOCK);
+        management.addProperties(management.getVertexLabel(SOURCE), versionPropertyKey);
+        management.addProperties(management.getVertexLabel(TARGET), versionPropertyKey);
+
+        EdgeLabel relationEdge = management.makeEdgeLabel(RELATION).multiplicity(Multiplicity.SIMPLE).make();
+        management.setConsistency(relationEdge, ConsistencyModifier.LOCK);
+
+        management.commit();
+
+        Transaction tx = traversal.tx();
+        tx.open();
+
+        Object targetVertexId = traversal.addV(TARGET).property(VERSION, 0).next().id();
+        Object sourceVertexId = traversal.addV(SOURCE).property(VERSION, 0).next().id();
+        tx.commit();
+
+        CompletableFuture<Object> relAddedButNotCommitted = new CompletableFuture<>();
+        CompletableFuture<Object> targetRemovedAndCommitted = new CompletableFuture<>();
+        AtomicReference<Throwable> exception = new AtomicReference<>();
+
+        //drop target vertex
+        Thread dropThread = new Thread(() -> {
+            try {
+                relAddedButNotCommitted.get();
+
+                Transaction txInner = traversal.tx();
+                txInner.open();
+
+                traversal.V(targetVertexId).drop().tryNext();
+
+                txInner.commit();
+
+                targetRemovedAndCommitted.complete(targetVertexId);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        //and build relation to it in parallel
+        Thread relationThread = new Thread(() -> {
+            try {
+                Transaction txInner = traversal.tx();
+                txInner.open();
+                Edge edge = traversal.addE(RELATION).from(traversal.V(sourceVertexId).property(VERSION, 1))
+                        .to(traversal.V(targetVertexId).property(VERSION, 1)).next();
+
+                relAddedButNotCommitted.complete(edge);
+
+                targetRemovedAndCommitted.get();
+                txInner.commit();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                exception.set(e);
+            }
+        });
+
+        dropThread.start();
+        relationThread.start();
+
+        dropThread.join();
+        relationThread.join();
+
+        //check ghost vertex
+        tx = traversal.tx();
+        tx.open();
+
+        Optional<Vertex> targetVertex = traversal.V(targetVertexId).tryNext();
+        assertThat(targetVertex.isPresent()).isFalse();
+
+        assertThat(exception.get().getCause().getCause()).isInstanceOf(PermanentLockingException.class);
+        Optional<Vertex> targetVertexViaEdge = traversal.V(sourceVertexId).outE().inV().tryNext();
+        assertThat(targetVertexViaEdge.isPresent()).isFalse();
+
+        tx.commit();
+
+    }
+
+
+    @Test
+    public void shouldNotProduceGhostVertexViaHangedProperty() throws InterruptedException {
+
+        JanusGraphManagement management = graph.openManagement();
+
+        management.makeVertexLabel(SOURCE).make();
+
+        PropertyKey versionPropertyKey = management.makePropertyKey(VERSION).dataType(Long.class).make();
+        management.setConsistency(versionPropertyKey , ConsistencyModifier.LOCK);
+        management.addProperties(management.getVertexLabel(SOURCE), versionPropertyKey);
+
+        PropertyKey oidPropertyKey = management.makePropertyKey(OID).dataType(Long.class).make();
+        management.setConsistency(oidPropertyKey , ConsistencyModifier.LOCK);
+        management.addProperties(management.getVertexLabel(SOURCE), oidPropertyKey);
+
+        String indexName = "byOid";
+        JanusGraphIndex byOid = management.buildIndex(indexName, Vertex.class)
+                .addKey(oidPropertyKey)
+                .unique()
+                .buildCompositeIndex();
+        management.setConsistency(byOid, ConsistencyModifier.LOCK);
+
+        management.commit();
+
+
+        Transaction tx = traversal.tx();
+        tx.open();
+
+        Object vertexId = traversal.addV(SOURCE).property(VERSION, 0).next().id();
+        tx.commit();
+
+        CompletableFuture<Object> propertyAddedButNotCommitted = new CompletableFuture<>();
+        CompletableFuture<Object> vertexRemovedAndCommitted = new CompletableFuture<>();
+        AtomicReference<Throwable> exception = new AtomicReference<>();
+
+        //drop target vertex
+        Thread dropThread = new Thread(() -> {
+            try {
+                propertyAddedButNotCommitted.get();
+
+                Transaction txInner = traversal.tx();
+                txInner.open();
+
+                traversal.V(vertexId).drop().tryNext();
+
+                txInner.commit();
+
+                vertexRemovedAndCommitted.complete(vertexId);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        //and add property to it in parallel
+        long propertyValue = 12345;
+        Thread relationThread = new Thread(() -> {
+            try {
+                Transaction txInner = traversal.tx();
+                txInner.open();
+                traversal.V(vertexId).next().property(VERSION, 1).property(OID, propertyValue);
+
+                propertyAddedButNotCommitted.complete(vertexId);
+
+                vertexRemovedAndCommitted.get();
+                txInner.commit();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                exception.set(e);
+            }
+        });
+
+        dropThread.start();
+        relationThread.start();
+
+        dropThread.join();
+        relationThread.join();
+
+        //check ghost vertex
+        tx = traversal.tx();
+        tx.open();
+
+        Optional<Vertex> vertex = traversal.V(vertexId).tryNext();
+        assertThat(vertex.isPresent()).isFalse();
+
+        assertThat(exception.get().getCause().getCause()).isInstanceOf(PermanentLockingException.class);
+        Optional<Vertex> vertexViaProperty = traversal.V().has(OID, propertyValue).tryNext();
+        assertThat(vertexViaProperty.isPresent()).isFalse();
+
+        tx.commit();
+
+    }
+
 }
