@@ -34,7 +34,9 @@ import java.util.function.Predicate;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.*;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BASIC_METRICS;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_JMX_DOMAIN;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_JMX_ENABLED;
 import static org.junit.Assert.assertEquals;
 
 @Ignore

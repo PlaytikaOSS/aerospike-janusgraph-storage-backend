@@ -13,21 +13,19 @@ import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.lock.PermanentLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.Exceptions;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
+import static com.playtika.janusgraph.aerospike.util.AsyncUtil.completeAll;
 import static nosql.batch.update.lock.Lock.LockType.SAME_BATCH;
 
 
 public class BatchExpectedValueOperations
         implements AerospikeExpectedValuesOperations<Map<Key, ExpectedValue>> {
 
-    private static Logger logger = LoggerFactory.getLogger(BatchExpectedValueOperations.class);
+    private static final Logger logger = LoggerFactory.getLogger(BatchExpectedValueOperations.class);
 
     private static final WritePolicy checkValuesPolicy = new WritePolicy();
     static {
@@ -41,31 +39,25 @@ public class BatchExpectedValueOperations
     }
 
     @Override
-    public Mono<Void> checkExpectedValues(List<AerospikeLock> locks, Map<Key, ExpectedValue> expectedValues) throws PermanentLockingException {
-
+    public void checkExpectedValues(List<AerospikeLock> locks, Map<Key, ExpectedValue> expectedValues) throws PermanentLockingException {
         if(locks.size() != expectedValues.size()){
             throw new IllegalArgumentException("locks.size() != expectedValues.size()");
         }
 
-        return Flux.fromStream(locks.stream()
-                .filter(aerospikeLock -> aerospikeLock.lockType  != SAME_BATCH))
-                .flatMap(aerospikeLock -> {
+        completeAll(locks,
+                aerospikeLock -> aerospikeLock.lockType  != SAME_BATCH,
+                aerospikeLock -> {
                     ExpectedValue expectedValue = expectedValues.get(aerospikeLock.key);
                     Key keyToCheck = aerospikeOperations.getKey(expectedValue.storeName, expectedValue.key);
-                    return checkColumnValues(keyToCheck, expectedValue.values)
-                            .map(successCheck -> {
-                                if(!successCheck){
-                                    throw Exceptions.propagate(new PermanentLockingException(String.format(
-                                            "Unexpected value for key=[%s]", keyToCheck)));
-                                }
-                                return true;
-                            });
-                }).then();
+                    return checkColumnValues(keyToCheck, expectedValue.values);
+                },
+                () -> new PermanentLockingException("Some values don't match expected values"),
+                aerospikeOperations.getAerospikeExecutor());
     }
 
-    private Mono<Boolean> checkColumnValues(final Key key, final Map<Value, Value> valuesForKey) {
+    private boolean checkColumnValues(final Key key, final Map<Value, Value> valuesForKey) {
         if(valuesForKey.isEmpty()){
-            return Mono.just(true);
+            return true;
         }
 
         int columnsNo = valuesForKey.size();
@@ -77,33 +69,35 @@ public class BatchExpectedValueOperations
             operations[i] = MapOperation.getByKey(ENTRIES_BIN_NAME, column, MapReturnType.VALUE);
             i++;
         }
-        return aerospikeOperations.getReactorClient().operate(checkValuesPolicy, key, operations)
-                .map(keyRecord -> {
-                    Record record = keyRecord.record;
-                    if (record != null) {
-                        if (columnsNo > 1) {
-                            List<?> resultList;
-                            if ((resultList = record.getList(ENTRIES_BIN_NAME)) != null) {
-                                for (int j = 0, n = resultList.size(); j < n; j++) {
-                                    Value column = columns[j];
-                                    if (!checkValue(key, column, valuesForKey.get(column), (byte[]) resultList.get(j))) {
-                                        return false;
-                                    }
-                                }
+
+        try {
+            Record record = aerospikeOperations.getClient().operate(checkValuesPolicy, key, operations);
+
+            if (record != null) {
+                if (columnsNo > 1) {
+                    List<?> resultList;
+                    if ((resultList = record.getList(ENTRIES_BIN_NAME)) != null) {
+                        for (int j = 0, n = resultList.size(); j < n; j++) {
+                            Value column = columns[j];
+                            if (!checkValue(key, column, valuesForKey.get(column), (byte[]) resultList.get(j))) {
+                                return false;
                             }
-                            return true;
-                        } else { //columnsNo == 1
-                            byte[] actualValueData = (byte[]) record.getValue(ENTRIES_BIN_NAME);
-                            Value column = columns[0];
-                            return checkValue(key, column, valuesForKey.get(column), actualValueData);
                         }
                     }
-                    else {
-                        return valuesForKey.values().stream()
-                                .allMatch(value -> value.equals(Value.NULL));
-                    }
-                }).doOnError(throwable -> logger.error("Error while checkColumnValues for key={}, values={}", key, valuesForKey, throwable));
-
+                    return true;
+                } else { //columnsNo == 1
+                    byte[] actualValueData = (byte[]) record.getValue(ENTRIES_BIN_NAME);
+                    Value column = columns[0];
+                    return checkValue(key, column, valuesForKey.get(column), actualValueData);
+                }
+            } else {
+                return valuesForKey.values().stream()
+                        .allMatch(value -> value.equals(Value.NULL));
+            }
+        } catch (Throwable throwable) {
+            logger.error("Error while checkColumnValues for key={}, values={}", key, valuesForKey, throwable);
+            throw throwable;
+        }
     }
 
     private boolean checkValue(Key key, Value column, Value expectedValue, byte[] actualValue) {

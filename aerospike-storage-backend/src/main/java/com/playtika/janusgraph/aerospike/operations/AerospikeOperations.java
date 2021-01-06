@@ -1,30 +1,22 @@
 package com.playtika.janusgraph.aerospike.operations;
 
 import com.aerospike.client.AerospikeClient;
-import com.aerospike.client.AerospikeException;
 import com.aerospike.client.Host;
 import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.Key;
 import com.aerospike.client.Value;
-import com.aerospike.client.async.EventLoops;
 import com.aerospike.client.policy.ClientPolicy;
-import com.aerospike.client.reactor.AerospikeReactorClient;
-import com.aerospike.client.reactor.IAerospikeReactorClient;
-import com.aerospike.client.reactor.retry.AerospikeReactorRetryClient;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
+import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
 import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.configuration.Configuration;
-import org.reactivestreams.Publisher;
-import reactor.core.Exceptions;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.util.function.Tuples;
 
-import java.time.Duration;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_HOSTS;
@@ -39,18 +31,18 @@ public class AerospikeOperations {
     private final String namespace;
     private final String graphPrefix;
     private final IAerospikeClient client;
+    private final ExecutorService aerospikeExecutor;
 
-    private IAerospikeReactorClient reactorClient;
     private final AerospikePolicyProvider aerospikePolicyProvider;
 
     public AerospikeOperations(String graphPrefix, String namespace,
                                IAerospikeClient client,
-                               IAerospikeReactorClient reactorClient,
-                               AerospikePolicyProvider aerospikePolicyProvider) {
+                               AerospikePolicyProvider aerospikePolicyProvider,
+                               ExecutorService aerospikeExecutor) {
         this.graphPrefix = graphPrefix+".";
         this.namespace = namespace;
         this.client = client;
-        this.reactorClient = reactorClient;
+        this.aerospikeExecutor = aerospikeExecutor;
         this.aerospikePolicyProvider = aerospikePolicyProvider;
     }
 
@@ -58,8 +50,8 @@ public class AerospikeOperations {
         return client;
     }
 
-    public IAerospikeReactorClient getReactorClient() {
-        return reactorClient;
+    public ExecutorService getAerospikeExecutor() {
+        return aerospikeExecutor;
     }
 
     public String getNamespace() {
@@ -95,46 +87,6 @@ public class AerospikeOperations {
         aerospikePolicyProvider.close();
     }
 
-    public static IAerospikeReactorClient buildAerospikeReactorClient(
-            IAerospikeClient aerospikeClient, EventLoops eventLoops){
-        return new AerospikeReactorRetryClient(
-                new AerospikeReactorClient(aerospikeClient, eventLoops),
-                retryOnNoMoreConnections());
-    }
-
-    //TODO Move to aerospike reactor client
-    public static final int BACKOFF_NANOS = 100;
-
-    public static Function<Flux<Throwable>, ? extends Publisher<?>> retryOnNoMoreConnections() {
-        return retryOn((throwable) -> throwable instanceof AerospikeException.Connection && ((AerospikeException.Connection)throwable).getResultCode() == -7,
-                BACKOFF_NANOS);
-    }
-
-    private static final Duration NEGATIVE_DURATION = Duration.ofSeconds(-1);
-
-    public static Function<Flux<Throwable>, ? extends Publisher<?>> retryOn(Predicate<Throwable> retryOn, int backoffNanos) {
-        AtomicLong backOff = new AtomicLong();
-        return retry((throwable, integer) -> retryOn.test(throwable)
-                ? Duration.ofNanos(backOff.addAndGet(backoffNanos)) : NEGATIVE_DURATION);
-    }
-
-    public static Function<Flux<Throwable>, ? extends Publisher<?>> retry(BiFunction<Throwable, Integer, Duration> retryDelay) {
-        return (throwableFlux) -> {
-            return throwableFlux.zipWith(Flux.range(1, 2147483647), (error, index) -> {
-                Duration delay = retryDelay.apply(error, index);
-                if (delay.isNegative()) {
-                    throw Exceptions.propagate(error);
-                } else {
-                    return Tuples.of(delay, error);
-                }
-            }).concatMap((tuple2) -> {
-                return !tuple2.getT1().isZero() ? Mono.delay(tuple2.getT1()).map((time) -> {
-                    return tuple2.getT2();
-                }) : Mono.just(tuple2.getT2());
-            });
-        };
-    }
-
     public static IAerospikeClient buildAerospikeClient(Configuration configuration, ClientPolicy clientPolicy) {
         int port = configuration.has(STORAGE_PORT) ? configuration.get(STORAGE_PORT) : DEFAULT_PORT;
 
@@ -144,4 +96,10 @@ public class AerospikeOperations {
         return new AerospikeClient(clientPolicy, hosts);
     }
 
+    public static ExecutorService executorService(int maxThreads){
+        return new ThreadPoolExecutor(0, maxThreads,
+                60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<Runnable>(),
+                new NamedThreadFactory("janus-aerospike", "janus-aerospike"));
+    }
 }

@@ -45,18 +45,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.aerospike</groupId>
-            <artifactId>aerospike-reactor-client</artifactId>
-            <exclusions>
-                <!--  take last version from aerospike-batch-updater -->
-                <exclusion>
-                    <groupId>io.projectreactor</groupId>
-                    <artifactId>reactor-core</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <scope>provided</scope>

@@ -11,6 +11,7 @@ import nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager;
 
 import java.time.Clock;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 public class BatchOperationsUtil {
 
@@ -18,36 +19,40 @@ public class BatchOperationsUtil {
             AerospikeOperations aerospikeOperations,
             String walNamespace,
             String walSetName,
-            Clock clock){
+            Clock clock,
+            ExecutorService executorService){
 
         AerospikeWriteAheadLogManager<BatchLocks, BatchUpdates, Map<Key, ExpectedValue>> walManager =
-                walManager(aerospikeOperations, walNamespace, walSetName, clock);
+                walManager(aerospikeOperations, walNamespace, walSetName, clock, executorService);
 
         AerospikeLockOperations<BatchLocks, Map<Key, ExpectedValue>> lockOperations =
-                lockOperations(aerospikeOperations);
+                lockOperations(aerospikeOperations, executorService);
 
         BatchUpdateOperations updateOperations = updateOperations(aerospikeOperations);
 
-        return new BatchOperations<>(walManager, lockOperations, updateOperations);
+        return new BatchOperations<>(walManager, lockOperations, updateOperations, executorService);
     }
 
     public static BatchUpdateOperations updateOperations(AerospikeOperations aerospikeOperations) {
-        return new BatchUpdateOperations(new BasicMutateOperations(aerospikeOperations));
+        return new BatchUpdateOperations(new BasicMutateOperations(aerospikeOperations), aerospikeOperations.getAerospikeExecutor());
     }
 
     public static AerospikeLockOperations<BatchLocks, Map<Key, ExpectedValue>> lockOperations(
-            AerospikeOperations aerospikeOperations) {
+            AerospikeOperations aerospikeOperations, ExecutorService executorService) {
         return new AerospikeLockOperations<>(
-                aerospikeOperations.getReactorClient(),
-                new BatchExpectedValueOperations(aerospikeOperations));
+                aerospikeOperations.getClient(),
+                new BatchExpectedValueOperations(aerospikeOperations),
+                executorService);
     }
 
     public static AerospikeWriteAheadLogManager<BatchLocks, BatchUpdates, Map<Key, ExpectedValue>> walManager(
-            AerospikeOperations aerospikeOperations, String walNamespace, String walSetName, Clock clock) {
+            AerospikeOperations aerospikeOperations,
+            String walNamespace, String walSetName,
+            Clock clock, ExecutorService executorService) {
         return new AerospikeWriteAheadLogManager<>(
-                aerospikeOperations.getClient(), aerospikeOperations.getReactorClient(), walNamespace, walSetName,
+                aerospikeOperations.getClient(), walNamespace, walSetName,
                 new BatchUpdateSerde(aerospikeOperations),
-                clock);
+                clock/*, executorService*/);
     }
 
 }

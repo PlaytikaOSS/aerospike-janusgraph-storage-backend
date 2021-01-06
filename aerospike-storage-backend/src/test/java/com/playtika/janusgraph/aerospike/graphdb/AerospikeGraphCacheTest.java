@@ -14,7 +14,6 @@
 
 package com.playtika.janusgraph.aerospike.graphdb;
 
-import com.aerospike.client.AerospikeException;
 import org.janusgraph.StorageSetup;
 import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.diskstorage.configuration.WriteConfiguration;

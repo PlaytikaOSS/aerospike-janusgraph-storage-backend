@@ -3,7 +3,6 @@ package com.playtika.janusgraph.aerospike.operations;
 import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.Value;
 import com.aerospike.client.policy.ClientPolicy;
-import com.aerospike.client.reactor.IAerospikeReactorClient;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
 import com.playtika.janusgraph.aerospike.operations.batch.BatchLocks;
 import com.playtika.janusgraph.aerospike.operations.batch.BatchOperationsUtil;
@@ -27,16 +26,18 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_CONNECTIONS_PER_NODE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.GRAPH_PREFIX;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.PARALLEL_READ_THRESHOLD;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeClient;
-import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeReactorClient;
+import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.executorService;
 
 public class BasicOperations implements Operations {
 
-    private static Logger logger = LoggerFactory.getLogger(BasicOperations.class);
+    private static final Logger logger = LoggerFactory.getLogger(BasicOperations.class);
 
     public static final String JANUS_AEROSPIKE_THREAD_GROUP_NAME = "janus-aerospike";
 
@@ -53,8 +54,8 @@ public class BasicOperations implements Operations {
         this.aerospikeOperations = buildAerospikeOperations(configuration);
         WalOperations walOperations = buildWalOperations(configuration, aerospikeOperations);
         this.mutateOperations = buildMutateOperations(aerospikeOperations);
-        BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> batchOperations
-                = buildBatchOperations(aerospikeOperations, walOperations, getClock());
+        BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> batchOperations = buildBatchOperations(
+                aerospikeOperations, walOperations, getClock(), aerospikeOperations.getAerospikeExecutor());
         this.batchUpdater = new BatchUpdater<>(batchOperations);
         if(configuration.get(START_WAL_COMPLETER)){
             this.writeAheadLogCompleter = buildWriteAheadLogCompleter(walOperations, batchOperations);
@@ -62,14 +63,15 @@ public class BasicOperations implements Operations {
             this.writeAheadLogCompleter = null;
         }
 
-        this.readOperations = buildReadOperations(aerospikeOperations);
+        this.readOperations = buildReadOperations(configuration, aerospikeOperations);
         this.scanOperations = buildScanOperations(configuration, aerospikeOperations);
     }
 
     protected BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> buildBatchOperations(
-            AerospikeOperations aerospikeOperations, WalOperations walOperations, Clock clock) {
+            AerospikeOperations aerospikeOperations, WalOperations walOperations, Clock clock,
+            ExecutorService executorService) {
         return BatchOperationsUtil.batchOperations(aerospikeOperations,
-                walOperations.getWalNamespace(), walOperations.getWalSetName(), clock);
+                walOperations.getWalNamespace(), walOperations.getWalSetName(), clock, executorService);
     }
 
     @Override
@@ -114,9 +116,9 @@ public class BasicOperations implements Operations {
         ClientPolicy clientPolicy = policyProvider.clientPolicy();
         IAerospikeClient client = buildAerospikeClient(configuration, clientPolicy);
         waitForClientToConnect(client);
-        IAerospikeReactorClient reactorClient = buildAerospikeReactorClient(client, clientPolicy.eventLoops);
 
-        return new AerospikeOperations(graphPrefix, namespace, client, reactorClient, policyProvider);
+        return new AerospikeOperations(graphPrefix, namespace, client, policyProvider,
+                executorService(configuration.get(AEROSPIKE_CONNECTIONS_PER_NODE) * 2));
     }
 
     private void waitForClientToConnect(IAerospikeClient client) {
@@ -162,8 +164,9 @@ public class BasicOperations implements Operations {
         );
     }
 
-    protected ReadOperations buildReadOperations(AerospikeOperations aerospikeOperations) {
-        return new ReadOperations(aerospikeOperations);
+    protected ReadOperations buildReadOperations(Configuration configuration, AerospikeOperations aerospikeOperations) {
+        Integer parallelReadThreshold = configuration.get(PARALLEL_READ_THRESHOLD);
+        return new ReadOperations(aerospikeOperations, parallelReadThreshold);
     }
 
     protected ScanOperations buildScanOperations(Configuration configuration, AerospikeOperations aerospikeOperations){

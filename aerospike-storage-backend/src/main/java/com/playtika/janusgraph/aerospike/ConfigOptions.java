@@ -39,7 +39,11 @@ public class ConfigOptions {
 
     public static final ConfigOption<Integer> AEROSPIKE_CONNECTIONS_PER_NODE= new ConfigOption<>(STORAGE_NS,
             "aerospike-connections-per-node-parallelism", "Limits how many connections aerospike can hold per node",
-            ConfigOption.Type.LOCAL, 300);
+            ConfigOption.Type.LOCAL, 100);
+
+    public static final ConfigOption<Integer> PARALLEL_READ_THRESHOLD = new ConfigOption<>(STORAGE_NS,
+            "parallel-read-threshold", "Number of keys when we should start run reads in parallel",
+            ConfigOption.Type.LOCAL, 3);
 
     public static final ConfigOption<Integer> AEROSPIKE_READ_TIMEOUT = new ConfigOption<>(STORAGE_NS,
             "aerospike-read-timeout", "Total transaction timeout in milliseconds to aerospike read operations." +

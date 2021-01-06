@@ -7,8 +7,6 @@ import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.Map;
 import java.util.NoSuchElementException;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
