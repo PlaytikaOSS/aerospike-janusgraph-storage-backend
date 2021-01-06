@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
-import static com.playtika.janusgraph.aerospike.util.ReactorUtil.block;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -81,14 +80,14 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         logger.trace("getSlice({}, tx:{}, {}, start:{}, end:{})",
                 storeName, txh, keys, query.getSliceStart(), query.getSliceEnd());
 
-        return readOperations.getSlice(storeName, keys, query, txh);
+        return readOperations.getSlice(storeName, keys, query);
     }
 
     @Override
     public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) throws BackendException{
         logger.trace("getSlice({}, tx:{}, {})", storeName, txh, query);
 
-        return block(readOperations.getSlice(storeName, query, txh)).getValue();
+        return readOperations.getSlice(storeName, query);
     }
 
     @Override
@@ -102,7 +101,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
 
         //no need in transactional logic
         if(transaction.getLocks().isEmpty()){
-            block(mutateOperations.mutate(storeName, keyValue, mutationMap));
+            mutateOperations.mutate(storeName, keyValue, mutationMap);
             return;
         }
 
@@ -121,10 +120,14 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = singletonMap(storeName,
                 singletonMap(keyValue, mutationMap));
 
-        block(batchUpdater.update(new BatchUpdate(
-                new BatchLocks(locksByStore, aerospikeOperations),
-                new BatchUpdates(mutationsByStore)))
-                .onErrorMap(ErrorMapper.INSTANCE));
+        try {
+            batchUpdater.update(new BatchUpdate(
+                    new BatchLocks(locksByStore, aerospikeOperations),
+                    new BatchUpdates(mutationsByStore)));
+        } catch (Throwable t) {
+            throw ErrorMapper.INSTANCE.apply(t);
+        }
+
         transaction.close();
     }
 

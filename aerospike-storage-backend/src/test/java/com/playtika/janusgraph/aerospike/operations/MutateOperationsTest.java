@@ -1,11 +1,8 @@
 package com.playtika.janusgraph.aerospike.operations;
 
 import com.aerospike.client.AerospikeClient;
-import com.aerospike.client.AerospikeException;
 import com.aerospike.client.Value;
 import com.aerospike.client.async.NioEventLoops;
-import com.aerospike.client.reactor.AerospikeReactorClient;
-import com.aerospike.client.reactor.IAerospikeReactorClient;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
 import org.janusgraph.diskstorage.BackendException;
 import org.junit.ClassRule;
@@ -16,7 +13,7 @@ import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PRO
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeClient;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
-import static com.playtika.janusgraph.aerospike.util.ReactorUtil.block;
+import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.executorService;
 import static java.util.Collections.singletonMap;
 
 public class MutateOperationsTest {
@@ -31,27 +28,27 @@ public class MutateOperationsTest {
 
     private NioEventLoops eventLoops = new NioEventLoops();
     private AerospikeClient client = getAerospikeClient(getAerospikeContainer(), eventLoops);
-    private IAerospikeReactorClient reactorClient = new AerospikeReactorClient(client, eventLoops);
 
     private MutateOperations mutateOperations = new BasicMutateOperations(
             new AerospikeOperations("test", AEROSPIKE_PROPERTIES.getNamespace(),
-                    client, reactorClient,
-                    new AerospikePolicyProvider(getAerospikeConfiguration(container))));
+                    client,
+                    new AerospikePolicyProvider(getAerospikeConfiguration(container)),
+                    executorService(4)));
 
 
     @Test
     public void shouldDeleteKeyIdempotently() throws BackendException {
         //when
-        block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, COLUMN_VALUE)));
+        mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, COLUMN_VALUE));
 
         //then
-        block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL)));
+        mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, Value.NULL));
 
         //expect
-        block(mutateOperations.mutate(STORE_NAME, KEY,
-                singletonMap(COLUMN_NAME, Value.NULL)));
+        mutateOperations.mutate(STORE_NAME, KEY,
+                singletonMap(COLUMN_NAME, Value.NULL));
     }
 
 }

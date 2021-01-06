@@ -39,7 +39,6 @@ import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETE
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
-import static com.playtika.janusgraph.aerospike.util.ReactorUtil.block;
 import static java.util.Collections.emptyMap;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
 
@@ -136,10 +135,13 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
             transaction.getTransactionValidator().accept(locksByStore, mutationsByStore);
         }
 
-        block(operations.batchUpdater().update(new BatchUpdate(
-                new BatchLocks(locksByStore, operations.getAerospikeOperations()),
-                new BatchUpdates(mutationsByStore)))
-                .onErrorMap(ErrorMapper.INSTANCE));
+        try {
+            operations.batchUpdater().update(new BatchUpdate(
+                    new BatchLocks(locksByStore, operations.getAerospikeOperations()),
+                    new BatchUpdates(mutationsByStore)));
+        } catch (Throwable t) {
+            throw ErrorMapper.INSTANCE.apply(t);
+        }
         transaction.close();
     }
 

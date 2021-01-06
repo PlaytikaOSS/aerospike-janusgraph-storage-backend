@@ -15,7 +15,6 @@
 package com.playtika.janusgraph.aerospike.diskstorage;
 
 import com.playtika.janusgraph.aerospike.AerospikeStoreManager;
-import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.MultiWriteKeyColumnValueStoreTest;
 import org.junit.ClassRule;
 import org.junit.Ignore;

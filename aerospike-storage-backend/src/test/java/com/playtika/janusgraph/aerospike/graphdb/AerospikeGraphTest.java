@@ -22,8 +22,6 @@ import org.junit.Ignore;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 
-import java.util.concurrent.ExecutionException;
-
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
