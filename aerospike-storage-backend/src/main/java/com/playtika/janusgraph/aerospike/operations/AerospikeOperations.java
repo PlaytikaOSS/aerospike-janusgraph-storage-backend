@@ -12,9 +12,7 @@ import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.configuration.Configuration;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -99,7 +97,7 @@ public class AerospikeOperations {
     public static ExecutorService executorService(int maxThreads){
         return new ThreadPoolExecutor(0, maxThreads,
                 60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<Runnable>(),
+                new LinkedBlockingQueue<>(),
                 new NamedThreadFactory("janus-aerospike", "janus-aerospike"));
     }
 }
