@@ -26,7 +26,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_CONNECTIONS_PER_NODE;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_EXECUTOR_MAX_THREADS;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.GRAPH_PREFIX;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.PARALLEL_READ_THRESHOLD;
@@ -118,7 +118,7 @@ public class BasicOperations implements Operations {
         waitForClientToConnect(client);
 
         return new AerospikeOperations(graphPrefix, namespace, client, policyProvider,
-                executorService(configuration.get(AEROSPIKE_CONNECTIONS_PER_NODE) * 2));
+                executorService(configuration.get(AEROSPIKE_EXECUTOR_MAX_THREADS)));
     }
 
     private void waitForClientToConnect(IAerospikeClient client) {
