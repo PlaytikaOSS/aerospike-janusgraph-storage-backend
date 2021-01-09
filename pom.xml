@@ -51,7 +51,7 @@
         <aerospike-reactor-client.version>4.4.10</aerospike-reactor-client.version>
         <janusgraph.version>0.5.3</janusgraph.version>
         <aerospike-batch-updater.version>0.0.17</aerospike-batch-updater.version>
-        <netty-all.version>4.1.51.Final</netty-all.version>
+        <netty-all.version>4.1.56.Final</netty-all.version>
 
         <!--Test-->
         <junit.version>4.13</junit.version>
