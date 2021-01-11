@@ -133,6 +133,15 @@ public class InconsistencyTest {
 
         tx.commit();
 
+        //try to remove ghost vertex
+        tx.open();
+        traversal.V(sourceVertexId).outE().inV().drop().tryNext();
+        tx.commit();
+
+        tx.open();
+        Optional<Vertex> targetVertexViaEdgeRemoved = traversal.V(sourceVertexId).outE().inV().tryNext();
+        assertThat(targetVertexViaEdgeRemoved.isPresent()).isFalse();
+        tx.commit();
     }
 
     @Test
@@ -219,6 +228,16 @@ public class InconsistencyTest {
         assertThat(vertexViaProperty.get().id()).isEqualTo(vertexId);
         assertThat(vertexViaProperty.get().label()).isEqualTo("vertex");
 
+        tx.commit();
+
+        //try to remove ghost vertex
+        tx.open();
+        traversal.V().has(OID, propertyValue).drop().tryNext();
+        tx.commit();
+
+        tx.open();
+        Optional<Vertex> vertexViaPropertyRemoved = traversal.V().has(OID, propertyValue).tryNext();
+        assertThat(vertexViaPropertyRemoved.isPresent()).isFalse();
         tx.commit();
 
     }
