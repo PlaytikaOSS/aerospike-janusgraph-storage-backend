@@ -58,4 +58,9 @@ public class ConfigOptions {
             "aerospike-write-timeout", "Total transaction timeout in milliseconds to aerospike write operations." +
             "If timeout is zero, there will be no time limit",
             ConfigOption.Type.LOCAL, 0);
+
+    public static final ConfigOption<Integer> AEROSPIKE_SOCKET_TIMEOUT = new ConfigOption<>(STORAGE_NS,
+            "aerospike-socket-timeout", "Socket idle timeout in milliseconds when processing a database command." +
+            "If timeout is zero, there will be no time limit",
+            ConfigOption.Type.LOCAL, 0);
 }
