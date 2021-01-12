@@ -15,7 +15,6 @@ import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.g
 final class AerospikeTransaction extends AbstractStoreTransaction {
 
     private List<DeferredLock> locks = new ArrayList<>();
-    private BiConsumer<Map<String, Map<Value, Map<Value, Value>>>, Map<String, Map<Value, Map<Value, Value>>>> transactionValidator;
 
     AerospikeTransaction(final BaseTransactionConfig config) {
         super(config);
@@ -56,13 +55,5 @@ final class AerospikeTransaction extends AbstractStoreTransaction {
     @Override
     public String toString(){
         return Integer.toHexString(hashCode());
-    }
-
-    public BiConsumer<Map<String, Map<Value, Map<Value, Value>>>, Map<String, Map<Value, Map<Value, Value>>>> getTransactionValidator() {
-        return transactionValidator;
-    }
-
-    public void setTransactionValidator(BiConsumer<Map<String, Map<Value, Map<Value, Value>>>, Map<String, Map<Value, Map<Value, Value>>>> transactionValidator) {
-        this.transactionValidator = transactionValidator;
     }
 }
