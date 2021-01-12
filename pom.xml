@@ -36,7 +36,7 @@
         <developer>
             <id>kptfh</id>
             <name>Sergii Karpenko</name>
-            <email>sergey.karpenko@gmail.com</email>
+            <email>sergiy.karpenko@gmail.com</email>
         </developer>
     </developers>
 
@@ -48,7 +48,6 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <aerospike-client.version>4.4.15</aerospike-client.version>
-        <aerospike-reactor-client.version>4.4.10</aerospike-reactor-client.version>
         <janusgraph.version>0.5.3</janusgraph.version>
         <aerospike-batch-updater.version>0.0.17</aerospike-batch-updater.version>
         <netty-all.version>4.1.51.Final</netty-all.version>

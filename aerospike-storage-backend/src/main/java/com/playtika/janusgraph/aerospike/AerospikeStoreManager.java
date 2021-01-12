@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.mutationToMap;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
@@ -53,7 +52,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     private final StoreFeatures features;
 
     private final Operations operations;
-    public static BiConsumer<Map<String, Map<Value, Map<Value, Value>>>, Map<String, Map<Value, Map<Value, Value>>>> transactionValidator;
 
     public AerospikeStoreManager(Configuration configuration) {
         super(configuration);
@@ -100,7 +98,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     @Override
     public StoreTransaction beginTransaction(final BaseTransactionConfig config) {
         AerospikeTransaction txh = new AerospikeTransaction(config);
-        txh.setTransactionValidator(transactionValidator);
         logger.trace("beginTransaction(tx:{})", txh);
         return txh;
     }
@@ -130,10 +127,6 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         Map<String, Map<Value, Map<Value, Value>>> locksByStore = transaction.getLocksByStoreKeyColumn();
 
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
-
-        if(transaction.getTransactionValidator() != null) {
-            transaction.getTransactionValidator().accept(locksByStore, mutationsByStore);
-        }
 
         try {
             operations.batchUpdater().update(new BatchUpdate(
