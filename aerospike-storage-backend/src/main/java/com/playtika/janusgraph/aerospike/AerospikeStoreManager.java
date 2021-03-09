@@ -89,6 +89,7 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 .multiQuery(true)
                 .batchMutation(true)
                 .unorderedScan(true)
+                .consistentScan(false)
                 .orderedScan(false)
                 .keyOrdered(false)
                 .localKeyPartition(false)

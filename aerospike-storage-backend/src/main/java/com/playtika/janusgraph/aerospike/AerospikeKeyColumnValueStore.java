@@ -20,11 +20,14 @@ import org.janusgraph.diskstorage.keycolumnvalue.KeyColumnValueStore;
 import org.janusgraph.diskstorage.keycolumnvalue.KeyIterator;
 import org.janusgraph.diskstorage.keycolumnvalue.KeyRangeQuery;
 import org.janusgraph.diskstorage.keycolumnvalue.KeySliceQuery;
+import org.janusgraph.diskstorage.keycolumnvalue.KeySlicesIterator;
+import org.janusgraph.diskstorage.keycolumnvalue.MultiSlicesQuery;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +76,21 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         logger.trace("getKeys({}, tx:{}, {})", storeName, txh, query);
 
         return scanOperations.getKeys(storeName, query, txh);
+    }
+
+    @Override
+    public KeySlicesIterator getKeys(MultiSlicesQuery multiSlicesQuery, StoreTransaction txh) throws BackendException {
+        logger.trace("getKeys({}, tx:{}, {})", storeName, txh, multiSlicesQuery);
+
+        //TODO fix
+        try {
+            Field field = MultiSlicesQuery.class.getDeclaredField("queries");
+            field.setAccessible(true);
+            List<SliceQuery> queries = (List<SliceQuery>)field.get(multiSlicesQuery);
+            return scanOperations.getKeys(storeName, queries, txh);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -19,8 +20,8 @@ public class AerospikeKeyIteratorTest {
     @Test
     public void shouldNotFailOnHasNextAfterClose(){
         AerospikeKeyIterator keyIterator = new AerospikeKeyIterator(new SliceQuery(
-                new StaticArrayBuffer(new byte[]{1}), new StaticArrayBuffer(new byte[]{2})
-        ));
+                new StaticArrayBuffer(new byte[]{1}), new StaticArrayBuffer(new byte[]{2}))
+        );
         keyIterator.setThread(new Thread());
 
         keyIterator.scanCallback(

@@ -6,7 +6,7 @@ import com.aerospike.client.Record;
 import com.aerospike.client.ScanCallback;
 import org.janusgraph.diskstorage.Entry;
 import org.janusgraph.diskstorage.StaticBuffer;
-import org.janusgraph.diskstorage.keycolumnvalue.KeyIterator;
+import org.janusgraph.diskstorage.keycolumnvalue.KeySlicesIterator;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
 import org.janusgraph.diskstorage.util.RecordIterator;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
@@ -15,53 +15,45 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * Should be used for test purposes only
  */
-public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
+public class AerospikeKeySlicesIterator implements KeySlicesIterator, ScanCallback {
 
-    private static final Logger logger = LoggerFactory.getLogger(AerospikeKeyIterator.class);
+    private static final Logger logger = LoggerFactory.getLogger(AerospikeKeySlicesIterator.class);
 
-    private final SliceQuery query;
+    private final List<SliceQuery> queries;
     private final BlockingQueue<KeyRecord> queue = new LinkedBlockingQueue<>(100);
     private KeyRecord next;
-    private Iterator<Entry> entriesIt;
+    private Map<SliceQuery, RecordIterator<Entry>> entriesIt;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private Thread thread;
 
     private static final KeyRecord TERMINATE_VALUE = new KeyRecord(null, null);
 
-    public AerospikeKeyIterator(SliceQuery query) {
-        this.query = query;
+    public AerospikeKeySlicesIterator(List<SliceQuery> queries) {
+        this.queries = queries;
     }
 
     @Override
-    public RecordIterator<Entry> getEntries() {
-
-        return new RecordIterator<Entry>() {
-            @Override
-            public boolean hasNext() {
-                return entriesIt.hasNext();
-            }
-
-            @Override
-            public Entry next() {
-                return entriesIt.next();
-            }
-
-            @Override
-            public void close() {
-            }
-        };
+    public Map<SliceQuery, RecordIterator<Entry>> getEntries() {
+        return entriesIt;
     }
 
     @Override
@@ -101,7 +93,9 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
             throw new NoSuchElementException();
         }
         try {
-            return keyToBuffer(next.key);
+            StaticArrayBuffer key = keyToBuffer(next.key);
+            logger.info("key=[{}]", key);
+            return key;
         } finally {
             next = null;
         }
@@ -114,24 +108,37 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
                 entriesIt = null;
                 return next;
             }
-            entriesIt = entriesIt(next);
+            entriesIt = entries(next);
 //        } while(!entriesIt.hasNext());
 
         return next;
     }
 
-    private Iterator<Entry> entriesIt(KeyRecord keyRecord){
-        return keyRecord.record.getMap(ENTRIES_BIN_NAME).entrySet().stream()
+    private Map<SliceQuery, RecordIterator<Entry>> entries(KeyRecord keyRecord){
+        List<Entry> entries = keyRecord.record.getMap(ENTRIES_BIN_NAME).entrySet().stream()
                 .map(o -> {
-                    Map.Entry<ByteBuffer, byte[]> entry = (Map.Entry<ByteBuffer, byte[]>)o;
+                    Map.Entry<ByteBuffer, byte[]> entry = (Map.Entry<ByteBuffer, byte[]>) o;
                     final StaticBuffer column = StaticArrayBuffer.of(entry.getKey());
                     final StaticBuffer value = StaticArrayBuffer.of(entry.getValue());
                     return StaticArrayEntry.of(column, value);
-                })
-                .filter(entry -> query.contains(entry.getColumn()))
-                .sorted()
-                .limit(query.getLimit())
-                .iterator();
+                }).collect(Collectors.toList());
+        Map<SliceQuery, List<Entry>> entriesByQuery = new HashMap<>();
+
+        entries.forEach(entry -> {
+            queries.forEach(sliceQuery -> {
+                if(sliceQuery.contains(entry.getColumn())) {
+                    List<Entry> entriesPerQuery = entriesByQuery.computeIfAbsent(sliceQuery,
+                            k -> new ArrayList<>());
+                    entriesPerQuery.add(entry);
+                }
+            });
+        });
+        return queries.stream()
+                .collect(toMap(
+                        query -> query,
+                        query -> new AerospikeRecordIterator(
+                                entriesByQuery.getOrDefault(query, emptyList()), query.getLimit())
+                ));
     }
 
     @Override
@@ -163,5 +170,29 @@ public class AerospikeKeyIterator implements KeyIterator, ScanCallback {
 
     public void setThread(Thread thread) {
         this.thread = thread;
+    }
+
+    private static class AerospikeRecordIterator implements RecordIterator<Entry> {
+        private final Iterator<Entry> iterator;
+
+
+        private AerospikeRecordIterator(List<Entry> entries, int limit) {
+            Collections.sort(entries);
+            this.iterator = entries.subList(0, Math.min(limit, entries.size())).iterator();
+        }
+
+        @Override
+        public void close() {
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+
+        @Override
+        public Entry next() {
+            return iterator.next();
+        }
     }
 }

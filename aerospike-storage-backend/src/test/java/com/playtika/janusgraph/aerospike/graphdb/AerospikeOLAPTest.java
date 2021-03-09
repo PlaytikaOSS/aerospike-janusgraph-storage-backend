@@ -24,9 +24,6 @@ import org.testcontainers.containers.GenericContainer;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 
-
-//TODO https://github.com/JanusGraph/janusgraph/issues/1527
-//TODO wait for https://github.com/JanusGraph/janusgraph/issues/1524
 public class AerospikeOLAPTest extends OLAPTest {
     @ClassRule
     public static final GenericContainer container = getAerospikeContainer();
@@ -34,40 +31,5 @@ public class AerospikeOLAPTest extends OLAPTest {
     @Override
     public WriteConfiguration getConfiguration() {
         return getAerospikeConfiguration(container).getConfiguration();
-    }
-
-    //TODO
-    @Ignore
-    @Override
-    @Test
-    public void degreeCounting() {
-    }
-
-    //Throws java.lang.OutOfMemoryError: Java heap space
-    @Ignore
-    @Override
-    @Test
-    public void degreeCountingDistance() {
-    }
-
-    //TODO
-    @Ignore
-    @Override
-    @Test
-    public void testVertexScan() {
-    }
-
-    //TODO
-    @Ignore
-    @Override
-    @Test
-    public void testShortestDistance() {
-    }
-
-    //TODO
-    @Ignore
-    @Override
-    @Test
-    public void testPageRank(){
     }
 }

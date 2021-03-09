@@ -18,12 +18,13 @@ import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.diskstorage.configuration.WriteConfiguration;
 import org.janusgraph.graphdb.JanusGraphTest;
 import org.junit.ClassRule;
-import org.junit.Ignore;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
+import static com.playtika.janusgraph.aerospike.diskstorage.AerospikeStoreTest.DUE_TO_RECORD_TO_BIG;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class AerospikeGraphTest extends JanusGraphTest {
@@ -36,13 +37,7 @@ public class AerospikeGraphTest extends JanusGraphTest {
         return getAerospikeConfiguration(container).getConfiguration();
     }
 
-    //TODO Investigate
-    @Ignore
-    @Test
-    @Override
-    public void testIndexUpdatesWithReindexAndRemove() {
-    }
-
+    @Tag(DUE_TO_RECORD_TO_BIG)
     @Test
     @Override
     public void testLargeJointIndexRetrieval() {
@@ -51,6 +46,7 @@ public class AerospikeGraphTest extends JanusGraphTest {
                 .hasMessageContaining("Could not commit transaction due to exception during persistence");
     }
 
+    @Tag(DUE_TO_RECORD_TO_BIG)
     @Test
     @Override
     public void testVertexCentricQuery() {

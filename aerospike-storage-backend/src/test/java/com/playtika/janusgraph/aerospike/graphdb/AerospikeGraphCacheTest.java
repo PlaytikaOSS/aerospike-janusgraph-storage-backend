@@ -20,6 +20,7 @@ import org.janusgraph.diskstorage.configuration.WriteConfiguration;
 import org.janusgraph.graphdb.JanusGraphTest;
 import org.junit.ClassRule;
 import org.junit.Ignore;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 
@@ -27,6 +28,7 @@ import java.util.concurrent.ExecutionException;
 
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
+import static com.playtika.janusgraph.aerospike.diskstorage.AerospikeStoreTest.DUE_TO_RECORD_TO_BIG;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class AerospikeGraphCacheTest extends JanusGraphTest {
@@ -39,26 +41,21 @@ public class AerospikeGraphCacheTest extends JanusGraphTest {
         return StorageSetup.addPermanentCache(getAerospikeConfiguration(container));
     }
 
-    //TODO Investigate
-    @Ignore
-    @Test
-    @Override
-    public void testIndexUpdatesWithReindexAndRemove() throws InterruptedException, ExecutionException {
-    }
-
+    @Tag(DUE_TO_RECORD_TO_BIG)
     @Test
     @Override
     public void testLargeJointIndexRetrieval() {
         assertThatThrownBy(super::testLargeJointIndexRetrieval)
-                .isInstanceOf(JanusGraphException.class) //Record too big
+                .isInstanceOf(JanusGraphException.class)
                 .hasMessageContaining("Could not commit transaction due to exception during persistence");
     }
 
+    @Tag(DUE_TO_RECORD_TO_BIG)
     @Test
     @Override
     public void testVertexCentricQuery() {
         assertThatThrownBy(super::testVertexCentricQuery)
-                .isInstanceOf(JanusGraphException.class) //Record too big
+                .isInstanceOf(JanusGraphException.class)
                 .hasMessageContaining("Could not commit transaction due to exception during persistence");
     }
 }
