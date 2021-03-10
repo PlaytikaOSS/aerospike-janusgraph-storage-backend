@@ -31,7 +31,7 @@
         <main.basedir>${project.basedir}/..</main.basedir>
 
         <!-- TODO remove after upgrade to 0.6.x janusgraph version  -->
-        <metrics.version>4.1.12.1</metrics.version>
+        <metrics.version>4.1.18</metrics.version>
     </properties>
 
     <dependencies>
