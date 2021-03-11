@@ -54,7 +54,7 @@
 
         <!--Test-->
         <junit.version>4.13</junit.version>
-        <assertj.version>3.15.0</assertj.version>
+        <assertj.version>3.19.0</assertj.version>
         <testcontainers.version>1.15.2</testcontainers.version>
         <blockhound.version>1.0.3.RELEASE</blockhound.version>
         <disruptor.version>3.4.2</disruptor.version>
