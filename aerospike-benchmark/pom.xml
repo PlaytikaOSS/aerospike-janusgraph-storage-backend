@@ -12,7 +12,7 @@
     <artifactId>aerospike-benchmark</artifactId>
 
     <properties>
-        <jmh.version>1.25</jmh.version>
+        <jmh.version>1.30</jmh.version>
     </properties>
 
     <dependencies>
