@@ -59,7 +59,7 @@
         <blockhound.version>1.0.4.RELEASE</blockhound.version>
         <disruptor.version>3.4.2</disruptor.version>
 
-        <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
+        <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
 
         <!-- Sonar -->
