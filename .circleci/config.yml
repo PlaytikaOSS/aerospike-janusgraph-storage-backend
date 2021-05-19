@@ -20,7 +20,7 @@ jobs:
       - run:
           name: Run build with tests
           command:  if [[ -z "$GIT_USER_EMAIL" ]]; then  mvn clean install org.jacoco:jacoco-maven-plugin:prepare-agent -P sonar -U --batch-mode -Dmaven.test.redirectTestOutputToFile=true;fi
-          no_output_timeout: 20m
+          no_output_timeout: 40m
       - run:
            name: Save test results
            command: |
