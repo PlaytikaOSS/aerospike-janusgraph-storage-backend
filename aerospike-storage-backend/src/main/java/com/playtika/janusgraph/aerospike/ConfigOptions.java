@@ -37,6 +37,10 @@ public class ConfigOptions {
             "You may consider to start WAL Completer externally than you will be able to suspend and resume it manually",
             ConfigOption.Type.LOCAL, true);
 
+    public static final ConfigOption<Integer> AEROSPIKE_MIN_CONNECTIONS_PER_NODE= new ConfigOption<>(STORAGE_NS,
+            "aerospike-min-connections-per-node", "Minimum number of connections on start-up per server node",
+            ConfigOption.Type.LOCAL, 10);
+
     public static final ConfigOption<Integer> AEROSPIKE_CONNECTIONS_PER_NODE= new ConfigOption<>(STORAGE_NS,
             "aerospike-connections-per-node", "Limits how many connections aerospike can hold per node",
             ConfigOption.Type.LOCAL, 300);
