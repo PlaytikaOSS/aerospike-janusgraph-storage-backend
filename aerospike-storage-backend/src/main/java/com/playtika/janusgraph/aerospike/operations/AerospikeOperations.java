@@ -10,17 +10,25 @@ import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
 import com.playtika.janusgraph.aerospike.util.NamedThreadFactory;
 import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.configuration.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static nosql.batch.update.util.AsyncUtil.shutdownAndAwaitTermination;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_HOSTS;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_PORT;
 
 public class AerospikeOperations {
+
+    private static final Logger logger = LoggerFactory.getLogger(AerospikeOperations.class);
 
     private static final int DEFAULT_PORT = 3000;
 
@@ -33,6 +41,9 @@ public class AerospikeOperations {
 
     private final AerospikePolicyProvider aerospikePolicyProvider;
 
+    private final ScheduledExecutorService statsLogger;
+    private final ScheduledFuture<?> statsFuture;
+
     public AerospikeOperations(String graphPrefix, String namespace,
                                IAerospikeClient client,
                                AerospikePolicyProvider aerospikePolicyProvider,
@@ -42,6 +53,10 @@ public class AerospikeOperations {
         this.client = client;
         this.aerospikeExecutor = aerospikeExecutor;
         this.aerospikePolicyProvider = aerospikePolicyProvider;
+        this.statsLogger = Executors.newScheduledThreadPool(1);
+        this.statsFuture = statsLogger.schedule(() ->
+                Stream.of(client.getCluster().getNodes()).forEach(node ->
+                        logger.info("node [{}] connections stats: {}", node, node.getConnectionStats())), 1, TimeUnit.MINUTES);
     }
 
     public IAerospikeClient getClient() {
@@ -81,6 +96,8 @@ public class AerospikeOperations {
     }
 
     public void close() {
+        statsFuture.cancel(true);
+        shutdownAndAwaitTermination(statsLogger);
         client.close();
         aerospikePolicyProvider.close();
     }
@@ -100,4 +117,5 @@ public class AerospikeOperations {
                 new LinkedBlockingQueue<>(),
                 new NamedThreadFactory("janus-aerospike", "janus-aerospike"));
     }
+
 }

@@ -39,7 +39,7 @@ public class AerospikeStoreTest extends KeyColumnValueStoreTest {
         return new AerospikeStoreManager(getAerospikeConfiguration(container));
     }
 
-    //TODO investigate
+    //TODO check after janusgraph 0.6.0
     @Ignore
     @Override
     @Test
