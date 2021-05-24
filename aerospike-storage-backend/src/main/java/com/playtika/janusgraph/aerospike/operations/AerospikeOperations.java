@@ -54,9 +54,10 @@ public class AerospikeOperations {
         this.aerospikeExecutor = aerospikeExecutor;
         this.aerospikePolicyProvider = aerospikePolicyProvider;
         this.statsLogger = Executors.newScheduledThreadPool(1);
-        this.statsFuture = statsLogger.schedule(() ->
+        this.statsFuture = statsLogger.scheduleAtFixedRate(() ->
                 Stream.of(client.getCluster().getNodes()).forEach(node ->
-                        logger.info("node [{}] connections stats: {}", node, node.getConnectionStats())), 1, TimeUnit.MINUTES);
+                        logger.info("node [{}] connections stats: {}", node, node.getConnectionStats())),
+                5, 5, TimeUnit.MINUTES);
     }
 
     public IAerospikeClient getClient() {
