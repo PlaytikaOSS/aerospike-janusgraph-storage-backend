@@ -29,6 +29,10 @@ public class AsyncUtil {
                                        Supplier<E> failedResultErrorSupplier,
                                        Executor executor) throws E {
 
+        if(keys.isEmpty()){
+            return;
+        }
+
         if(keys.size() == 1){
             K key = keys.iterator().next();
             if(!keyPredicate.test(key)){
