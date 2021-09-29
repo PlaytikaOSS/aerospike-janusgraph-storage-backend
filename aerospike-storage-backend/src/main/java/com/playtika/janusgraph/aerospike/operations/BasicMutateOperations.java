@@ -14,6 +14,7 @@ import com.aerospike.client.cdt.MapReturnType;
 import com.aerospike.client.cdt.MapWriteMode;
 import com.aerospike.client.policy.WritePolicy;
 import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
+import org.janusgraph.graphdb.database.idassigner.IDPoolExhaustedException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
+import static com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates.IDS_STORE_NAME;
 
 public class BasicMutateOperations implements MutateOperations{
 
@@ -40,6 +42,7 @@ public class BasicMutateOperations implements MutateOperations{
 
     @Override
     public void mutate(String storeName, Value key, Map<Value, Value> mutation) {
+
         Key aerospikeKey = aerospikeOperations.getKey(storeName, key);
         List<Operation> operations = new ArrayList<>(3);
         List<Value> keysToRemove = new ArrayList<>(mutation.size());
@@ -80,7 +83,10 @@ public class BasicMutateOperations implements MutateOperations{
             }
 
         } catch (AerospikeException ae) {
-            if(ae.getResultCode() != ResultCode.KEY_NOT_FOUND_ERROR){
+            if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG
+                    && storeName.equals(IDS_STORE_NAME)){
+                throw new IDPoolExhaustedException(ae);
+            } else if(ae.getResultCode() != ResultCode.KEY_NOT_FOUND_ERROR){
                 throw ae;
             }
         }
