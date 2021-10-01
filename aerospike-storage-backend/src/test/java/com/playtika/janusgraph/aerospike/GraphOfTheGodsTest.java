@@ -1,5 +1,6 @@
 package com.playtika.janusgraph.aerospike;
 
+import com.playtika.janusgraph.trace.DebugJanusGraph;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
@@ -30,7 +31,8 @@ public class GraphOfTheGodsTest {
 
     @Before
     public void buildGraph() {
-        graph = JanusGraphFactory.open(getAerospikeConfiguration(container));
+//        graph = JanusGraphFactory.open(getAerospikeConfiguration(container));
+        graph = DebugJanusGraph.open(getAerospikeConfiguration(container).getConfiguration());
 
         GraphOfTheGodsFactory.loadWithoutMixedIndex(graph, true);
     }
