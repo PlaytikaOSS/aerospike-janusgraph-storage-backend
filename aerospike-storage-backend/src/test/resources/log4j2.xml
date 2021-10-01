@@ -10,7 +10,10 @@
         <AsyncRoot level="info">
             <AppenderRef ref="Console" />
         </AsyncRoot>
-<!--        <AsyncLogger  name="com.playtika.janusgraph.aerospike" level="trace" additivity="false">-->
+<!--        <AsyncLogger  name="org.janusgraph" level="trace" additivity="false">-->
+<!--            <AppenderRef ref="Console"/>-->
+<!--        </AsyncLogger>-->
+<!--        <AsyncLogger  name="com.playtika.janusgraph" level="trace" additivity="false">-->
 <!--            <AppenderRef ref="Console"/>-->
 <!--        </AsyncLogger>-->
 <!--        <AsyncLogger name="nosql.batch.update" level="trace" additivity="false">-->
