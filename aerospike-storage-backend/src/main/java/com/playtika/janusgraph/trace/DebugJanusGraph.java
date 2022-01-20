@@ -6,7 +6,9 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies;
 import org.apache.tinkerpop.gremlin.structure.Direction;
+import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphManagerUtility;
 import org.janusgraph.core.schema.SchemaStatus;
@@ -29,6 +31,12 @@ import org.janusgraph.graphdb.internal.InternalRelationType;
 import org.janusgraph.graphdb.internal.InternalVertex;
 import org.janusgraph.graphdb.management.JanusGraphManager;
 import org.janusgraph.graphdb.relations.EdgeDirection;
+import org.janusgraph.graphdb.tinkerpop.optimize.AdjacentVertexFilterOptimizerStrategy;
+import org.janusgraph.graphdb.tinkerpop.optimize.AdjacentVertexHasIdOptimizerStrategy;
+import org.janusgraph.graphdb.tinkerpop.optimize.AdjacentVertexIsOptimizerStrategy;
+import org.janusgraph.graphdb.tinkerpop.optimize.JanusGraphIoRegistrationStrategy;
+import org.janusgraph.graphdb.tinkerpop.optimize.JanusGraphLocalQueryOptimizerStrategy;
+import org.janusgraph.graphdb.tinkerpop.optimize.JanusGraphStepStrategy;
 import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 import org.janusgraph.graphdb.types.CompositeIndexType;
 import org.janusgraph.graphdb.types.system.BaseRelationType;
@@ -53,6 +61,21 @@ public class DebugJanusGraph extends StandardJanusGraph {
             internalRelation -> internalRelation.getType() instanceof BaseRelationType && internalRelation.getVertex(0) instanceof JanusGraphSchemaVertex;
 
     private static final Predicate<InternalRelation> NO_SCHEMA_FILTER = internalRelation -> !SCHEMA_FILTER.apply(internalRelation);
+
+    static {
+        TraversalStrategies graphStrategies =
+                TraversalStrategies.GlobalCache.getStrategies(Graph.class)
+                                               .clone()
+                                               .addStrategies(AdjacentVertexFilterOptimizerStrategy.instance(),
+                                                              AdjacentVertexHasIdOptimizerStrategy.instance(),
+                                                              AdjacentVertexIsOptimizerStrategy.instance(),
+                                                              JanusGraphLocalQueryOptimizerStrategy.instance(),
+                                                              JanusGraphStepStrategy.instance(),
+                                                              JanusGraphIoRegistrationStrategy.instance());
+
+        //Register with cache
+        TraversalStrategies.GlobalCache.registerStrategies(DebugJanusGraph.class, graphStrategies);
+    }
 
     public DebugJanusGraph(GraphDatabaseConfiguration configuration) {
         super(configuration);
