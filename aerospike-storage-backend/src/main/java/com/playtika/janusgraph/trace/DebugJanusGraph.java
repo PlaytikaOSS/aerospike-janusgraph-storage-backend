@@ -84,10 +84,9 @@ public class DebugJanusGraph extends StandardJanusGraph {
     @Override
     public void commit(final Collection<InternalRelation> addedRelations,
                        final Collection<InternalRelation> deletedRelations, final StandardJanusGraphTx tx) {
+        super.commit(addedRelations, deletedRelations, tx);
 
         traceCommit(addedRelations, deletedRelations, NO_SCHEMA_FILTER, tx);
-
-        super.commit(addedRelations, deletedRelations, tx);
     }
 
     private void traceCommit(final Collection<InternalRelation> addedRelations,
