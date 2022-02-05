@@ -40,6 +40,7 @@ public class AerospikeOperations {
     private final ExecutorService aerospikeExecutor;
 
     private final AerospikePolicyProvider aerospikePolicyProvider;
+    private final ExecutorService batchExecutor;
 
     private final ScheduledExecutorService statsLogger;
     private final ScheduledFuture<?> statsFuture;
@@ -47,12 +48,14 @@ public class AerospikeOperations {
     public AerospikeOperations(String graphPrefix, String namespace,
                                IAerospikeClient client,
                                AerospikePolicyProvider aerospikePolicyProvider,
-                               ExecutorService aerospikeExecutor) {
+                               ExecutorService aerospikeExecutor,
+                               ExecutorService batchExecutor) {
         this.graphPrefix = graphPrefix+".";
         this.namespace = namespace;
         this.client = client;
         this.aerospikeExecutor = aerospikeExecutor;
         this.aerospikePolicyProvider = aerospikePolicyProvider;
+        this.batchExecutor = batchExecutor;
         this.statsLogger = Executors.newScheduledThreadPool(1);
         this.statsFuture = statsLogger.scheduleAtFixedRate(() ->
                 Stream.of(client.getCluster().getNodes()).forEach(node ->
@@ -66,6 +69,10 @@ public class AerospikeOperations {
 
     public ExecutorService getAerospikeExecutor() {
         return aerospikeExecutor;
+    }
+
+    public ExecutorService getBatchExecutor() {
+        return batchExecutor;
     }
 
     public String getNamespace() {
@@ -112,11 +119,5 @@ public class AerospikeOperations {
         return new AerospikeClient(clientPolicy, hosts);
     }
 
-    public static ExecutorService executorService(int maxThreads){
-        return new ThreadPoolExecutor(0, maxThreads,
-                60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(),
-                new NamedThreadFactory("janus-aerospike", "janus-aerospike"));
-    }
 
 }

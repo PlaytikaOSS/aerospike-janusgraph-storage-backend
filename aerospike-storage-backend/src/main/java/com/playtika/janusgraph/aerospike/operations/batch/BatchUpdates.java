@@ -4,9 +4,12 @@ import com.aerospike.client.Value;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static java.util.Arrays.asList;
 import static org.janusgraph.diskstorage.Backend.EDGESTORE_NAME;
 import static org.janusgraph.diskstorage.Backend.INDEXSTORE_NAME;
 import static org.janusgraph.graphdb.configuration.JanusGraphConstants.JANUSGRAPH_ID_STORE_NAME;
@@ -16,6 +19,8 @@ public class BatchUpdates {
     public static final String INDEX_STORE_NAME = INDEXSTORE_NAME;
     public static final String EDGE_STORE_NAME = EDGESTORE_NAME;
     public static final String IDS_STORE_NAME = JANUSGRAPH_ID_STORE_NAME;
+
+    public static final Set<String> REGULAR_STORE_NAMES = new HashSet<>(asList(INDEX_STORE_NAME, EDGE_STORE_NAME));
 
     private final UpdatesOrdered updatesOrdered;
     private final Map<String, Map<Value, Map<Value, Value>>> updatesByStore;

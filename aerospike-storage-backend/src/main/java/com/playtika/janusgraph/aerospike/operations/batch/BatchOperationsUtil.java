@@ -20,17 +20,18 @@ public class BatchOperationsUtil {
             String walNamespace,
             String walSetName,
             Clock clock,
-            ExecutorService executorService){
+            ExecutorService aerospikeExecutorService,
+            ExecutorService batchExecutorService){
 
         AerospikeWriteAheadLogManager<BatchLocks, BatchUpdates, Map<Key, ExpectedValue>> walManager =
-                walManager(aerospikeOperations, walNamespace, walSetName, clock, executorService);
+                walManager(aerospikeOperations, walNamespace, walSetName, clock, aerospikeExecutorService);
 
         AerospikeLockOperations<BatchLocks, Map<Key, ExpectedValue>> lockOperations =
-                lockOperations(aerospikeOperations, executorService);
+                lockOperations(aerospikeOperations, aerospikeExecutorService);
 
         BatchUpdateOperations updateOperations = updateOperations(aerospikeOperations);
 
-        return new BatchOperations<>(walManager, lockOperations, updateOperations, executorService);
+        return new BatchOperations<>(walManager, lockOperations, updateOperations, batchExecutorService);
     }
 
     public static BatchUpdateOperations updateOperations(AerospikeOperations aerospikeOperations) {

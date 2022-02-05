@@ -67,4 +67,8 @@ public class ConfigOptions {
             "aerospike-socket-timeout", "Socket idle timeout in milliseconds when processing a database command." +
             "If timeout is zero, there will be no time limit",
             ConfigOption.Type.LOCAL, 0);
+
+    public static final ConfigOption<Boolean> CHECK_ALL_MUTATIONS_LOCKED = new ConfigOption<>(STORAGE_NS,
+            "check-all-mutations-locked", "Checks that all mutations are locked",
+            ConfigOption.Type.LOCAL, false);
 }
