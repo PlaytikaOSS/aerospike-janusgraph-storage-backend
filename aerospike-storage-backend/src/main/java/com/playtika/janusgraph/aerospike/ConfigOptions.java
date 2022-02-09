@@ -27,6 +27,10 @@ public class ConfigOptions {
             "and can be re-processed",
             ConfigOption.Type.LOCAL, 600000L);
 
+    public static final ConfigOption<Integer> WAL_MAX_BATCH_SIZE = new ConfigOption<>(STORAGE_NS,
+            "wal-max-batch-size", "Max batch size which completer will process in-memory",
+            ConfigOption.Type.LOCAL, 5000);
+
     public static final ConfigOption<Boolean> TEST_ENVIRONMENT = new ConfigOption<>(STORAGE_NS,
             "test-environment", "Weather this production or test environment",
             ConfigOption.Type.LOCAL, false);

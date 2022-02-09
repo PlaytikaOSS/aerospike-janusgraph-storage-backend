@@ -4,7 +4,7 @@
 
     <groupId>com.playtika.janusgraph</groupId>
     <artifactId>aerospike</artifactId>
-    <version>1.0.22-SNAPSHOT</version>
+    <version>1.0.24-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -49,7 +49,10 @@
 
         <aerospike-client.version>4.4.15</aerospike-client.version>
         <janusgraph.version>0.5.3</janusgraph.version>
-        <aerospike-batch-updater.version>0.0.19</aerospike-batch-updater.version>
+
+
+        <aerospike-batch-updater.version>0.0.20</aerospike-batch-updater.version>
+
         <netty-all.version>4.1.60.Final</netty-all.version>
 
         <!--Test-->

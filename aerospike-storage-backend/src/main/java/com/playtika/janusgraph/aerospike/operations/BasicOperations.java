@@ -154,6 +154,7 @@ public class BasicOperations implements Operations {
         return new WriteAheadLogCompleter<>(
                 batchOperations,
                 Duration.ofMillis(walOperations.getStaleTransactionLifetimeThresholdInMs()),
+                walOperations.getMaxBatchSize(),
                 new AerospikeExclusiveLocker(
                         walOperations.getAerospikeOperations().getClient(),
                         walOperations.getWalNamespace(),
