@@ -33,13 +33,13 @@ import static com.playtika.janusgraph.aerospike.ConfigOptions.PARALLEL_READ_THRE
 import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeClient;
-import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.executorService;
 
 public class BasicOperations implements Operations {
 
     private static final Logger logger = LoggerFactory.getLogger(BasicOperations.class);
 
     public static final String JANUS_AEROSPIKE_THREAD_GROUP_NAME = "janus-aerospike";
+    public static final String JANUS_BATCH_THREAD_GROUP_NAME = "janus-batch";
 
     private final AerospikeOperations aerospikeOperations;
     private final MutateOperations mutateOperations;
@@ -55,7 +55,9 @@ public class BasicOperations implements Operations {
         WalOperations walOperations = buildWalOperations(configuration, aerospikeOperations);
         this.mutateOperations = buildMutateOperations(aerospikeOperations);
         BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> batchOperations = buildBatchOperations(
-                aerospikeOperations, walOperations, getClock(), aerospikeOperations.getAerospikeExecutor());
+                aerospikeOperations, walOperations, getClock(),
+                aerospikeOperations.getAerospikeExecutor(),
+                aerospikeOperations.getBatchExecutor());
         this.batchUpdater = new BatchUpdater<>(batchOperations);
         if(configuration.get(START_WAL_COMPLETER)){
             this.writeAheadLogCompleter = buildWriteAheadLogCompleter(walOperations, batchOperations);
@@ -69,9 +71,10 @@ public class BasicOperations implements Operations {
 
     protected BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> buildBatchOperations(
             AerospikeOperations aerospikeOperations, WalOperations walOperations, Clock clock,
-            ExecutorService executorService) {
+            ExecutorService executorService, ExecutorService batchExecutorService) {
         return BatchOperationsUtil.batchOperations(aerospikeOperations,
-                walOperations.getWalNamespace(), walOperations.getWalSetName(), clock, executorService);
+                walOperations.getWalNamespace(), walOperations.getWalSetName(), clock,
+                executorService, batchExecutorService);
     }
 
     @Override
@@ -118,7 +121,8 @@ public class BasicOperations implements Operations {
         waitForClientToConnect(client);
 
         return new AerospikeOperations(graphPrefix, namespace, client, policyProvider,
-                executorService(configuration.get(AEROSPIKE_EXECUTOR_MAX_THREADS)));
+                executorService(configuration.get(AEROSPIKE_EXECUTOR_MAX_THREADS)),
+                executorService(8, 8));
     }
 
     private void waitForClientToConnect(IAerospikeClient client) {
@@ -130,12 +134,6 @@ public class BasicOperations implements Operations {
                 throw new RuntimeException();
             }
         }
-    }
-
-    private ThreadPoolExecutor buildExecutor(int corePoolSize, Integer maxPoolSize, String name) {
-        return new ThreadPoolExecutor(corePoolSize, maxPoolSize,
-                1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
-                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, name));
     }
 
     protected WalOperations buildWalOperations(Configuration configuration, AerospikeOperations aerospikeOperations){
@@ -186,5 +184,20 @@ public class BasicOperations implements Operations {
             writeAheadLogCompleter.shutdown();
         }
         aerospikeOperations.close();
+    }
+
+    public static ExecutorService executorService(int maxThreads){
+        return new ThreadPoolExecutor(0, maxThreads,
+                60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(),
+                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "janus-aerospike"));
+    }
+
+    public static ExecutorService executorService(int maxThreads, int queueCapacity){
+        return new ThreadPoolExecutor(0, maxThreads,
+                60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(queueCapacity),
+                new NamedThreadFactory(JANUS_BATCH_THREAD_GROUP_NAME, "janus-batch"),
+                new ThreadPoolExecutor.CallerRunsPolicy());
     }
 }

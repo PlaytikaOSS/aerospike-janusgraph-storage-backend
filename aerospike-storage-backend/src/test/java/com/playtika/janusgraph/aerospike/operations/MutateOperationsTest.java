@@ -13,7 +13,7 @@ import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PRO
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeClient;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
-import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.executorService;
+import static com.playtika.janusgraph.aerospike.operations.BasicOperations.executorService;
 import static java.util.Collections.singletonMap;
 
 public class MutateOperationsTest {
@@ -33,7 +33,8 @@ public class MutateOperationsTest {
             new AerospikeOperations("test", AEROSPIKE_PROPERTIES.getNamespace(),
                     client,
                     new AerospikePolicyProvider(getAerospikeConfiguration(container)),
-                    executorService(4)));
+                    executorService(4),
+                    executorService(4, 4)));
 
 
     @Test

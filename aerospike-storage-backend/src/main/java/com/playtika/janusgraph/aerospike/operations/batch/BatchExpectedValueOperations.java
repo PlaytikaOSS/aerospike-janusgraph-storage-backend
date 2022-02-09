@@ -14,6 +14,7 @@ import nosql.batch.update.lock.PermanentLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +58,7 @@ public class BatchExpectedValueOperations
 
     private boolean checkColumnValues(final Key key, final Map<Value, Value> valuesForKey) {
         if(valuesForKey.isEmpty()){
-            return true;
+            throw new IllegalArgumentException(String.format("Empty valuesForKey key=[%s]", key));
         }
 
         int columnsNo = valuesForKey.size();
@@ -72,32 +73,39 @@ public class BatchExpectedValueOperations
 
         try {
             Record record = aerospikeOperations.getClient().operate(checkValuesPolicy, key, operations);
-
             if (record != null) {
                 if (columnsNo > 1) {
-                    List<?> resultList;
-                    if ((resultList = record.getList(ENTRIES_BIN_NAME)) != null) {
-                        for (int j = 0, n = resultList.size(); j < n; j++) {
+                    List<?> resultList = record.getList(ENTRIES_BIN_NAME);
+                    if (resultList != null) {
+                        if(resultList.size() != columnsNo){
+                            throw new IllegalArgumentException(String.format("Unexpected result size [%s] != [%s]", resultList.size(), columnsNo));
+                        }
+                        for (int j = 0; j < columnsNo; j++) {
                             Value column = columns[j];
                             if (!checkValue(key, column, valuesForKey.get(column), (byte[]) resultList.get(j))) {
                                 return false;
                             }
                         }
+                        return true;
+                    } else {
+                        throw new IllegalArgumentException();
                     }
-                    return true;
                 } else { //columnsNo == 1
                     byte[] actualValueData = (byte[]) record.getValue(ENTRIES_BIN_NAME);
                     Value column = columns[0];
                     return checkValue(key, column, valuesForKey.get(column), actualValueData);
                 }
             } else {
-                return valuesForKey.values().stream()
-                        .allMatch(value -> value.equals(Value.NULL));
+                return allNulls(valuesForKey.values());
             }
         } catch (Throwable throwable) {
             logger.error("Error while checkColumnValues for key={}, values={}", key, valuesForKey, throwable);
             throw throwable;
         }
+    }
+
+    private boolean allNulls(Collection<Value> values) {
+        return values.stream().allMatch(value -> value.equals(Value.NULL));
     }
 
     private boolean checkValue(Key key, Value column, Value expectedValue, byte[] actualValue) {
