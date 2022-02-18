@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_EXECUTOR_MAX_THREADS;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.GRAPH_PREFIX;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.IDS_NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.PARALLEL_READ_THRESHOLD;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
@@ -113,6 +114,7 @@ public class BasicOperations implements Operations {
 
     protected AerospikeOperations buildAerospikeOperations(Configuration configuration) {
         String namespace = configuration.get(NAMESPACE);
+        String idsNamespace = configuration.get(IDS_NAMESPACE);
         String graphPrefix = configuration.get(GRAPH_PREFIX);
 
         AerospikePolicyProvider policyProvider = buildPolicyProvider(configuration);
@@ -120,7 +122,9 @@ public class BasicOperations implements Operations {
         IAerospikeClient client = buildAerospikeClient(configuration, clientPolicy);
         waitForClientToConnect(client);
 
-        return new AerospikeOperations(graphPrefix, namespace, client, policyProvider,
+        return new AerospikeOperations(graphPrefix,
+                namespace, idsNamespace,
+                client, policyProvider,
                 executorService(configuration.get(AEROSPIKE_EXECUTOR_MAX_THREADS)),
                 executorService(8, 8));
     }

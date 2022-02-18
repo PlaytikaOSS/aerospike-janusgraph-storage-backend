@@ -30,7 +30,8 @@ public class MutateOperationsTest {
     private AerospikeClient client = getAerospikeClient(getAerospikeContainer(), eventLoops);
 
     private MutateOperations mutateOperations = new BasicMutateOperations(
-            new AerospikeOperations("test", AEROSPIKE_PROPERTIES.getNamespace(),
+            new AerospikeOperations("test",
+                    AEROSPIKE_PROPERTIES.getNamespace(), AEROSPIKE_PROPERTIES.getNamespace(),
                     client,
                     new AerospikePolicyProvider(getAerospikeConfiguration(container)),
                     executorService(4),

@@ -10,6 +10,7 @@ import org.testcontainers.containers.GenericContainer;
 
 import static com.playtika.janusgraph.aerospike.AerospikeStoreManager.AEROSPIKE_BUFFER_SIZE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.GRAPH_PREFIX;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.IDS_NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.TEST_ENVIRONMENT;
@@ -44,6 +45,7 @@ public class AerospikeTestUtils {
         config.set(STORAGE_PORT, container.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
         config.set(STORAGE_BACKEND, "com.playtika.janusgraph.aerospike.AerospikeStoreManager");
         config.set(NAMESPACE, AEROSPIKE_PROPERTIES.getNamespace());
+        config.set(IDS_NAMESPACE, AEROSPIKE_PROPERTIES.getNamespace());
         config.set(WAL_NAMESPACE, AEROSPIKE_PROPERTIES.getNamespace());
         config.set(GRAPH_PREFIX, "test");
         //!!! need to prevent small batches mutations as we use deferred locking approach !!!
