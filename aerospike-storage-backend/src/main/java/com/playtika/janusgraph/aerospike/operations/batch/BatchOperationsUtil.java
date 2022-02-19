@@ -24,7 +24,7 @@ public class BatchOperationsUtil {
             ExecutorService batchExecutorService){
 
         AerospikeWriteAheadLogManager<BatchLocks, BatchUpdates, Map<Key, ExpectedValue>> walManager =
-                walManager(aerospikeOperations, walNamespace, walSetName, clock, aerospikeExecutorService);
+                walManager(aerospikeOperations, walNamespace, walSetName, clock);
 
         AerospikeLockOperations<BatchLocks, Map<Key, ExpectedValue>> lockOperations =
                 lockOperations(aerospikeOperations, aerospikeExecutorService);
@@ -49,11 +49,11 @@ public class BatchOperationsUtil {
     public static AerospikeWriteAheadLogManager<BatchLocks, BatchUpdates, Map<Key, ExpectedValue>> walManager(
             AerospikeOperations aerospikeOperations,
             String walNamespace, String walSetName,
-            Clock clock, ExecutorService executorService) {
+            Clock clock) {
         return new AerospikeWriteAheadLogManager<>(
                 aerospikeOperations.getClient(), walNamespace, walSetName,
                 new BatchUpdateSerde(aerospikeOperations),
-                clock/*, executorService*/);
+                clock);
     }
 
 }

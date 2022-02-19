@@ -22,7 +22,6 @@ import java.util.stream.Stream;
 import static nosql.batch.update.util.AsyncUtil.shutdownAndAwaitTermination;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_HOSTS;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_PORT;
-import static org.janusgraph.graphdb.configuration.JanusGraphConstants.JANUSGRAPH_ID_STORE_NAME;
 
 public class AerospikeOperations {
 
@@ -33,6 +32,7 @@ public class AerospikeOperations {
     public static final String ENTRIES_BIN_NAME = "entries";
 
     private final String namespace;
+    private final String idsStoreName;
     private final String idsNamespace;
     private final String graphPrefix;
     private final IAerospikeClient client;
@@ -44,14 +44,18 @@ public class AerospikeOperations {
     private final ScheduledExecutorService statsLogger;
     private final ScheduledFuture<?> statsFuture;
 
+
     public AerospikeOperations(String graphPrefix,
-                               String namespace, String idsNamespace,
+                               String namespace,
+                               String idsStoreName,
+                               String idsNamespace,
                                IAerospikeClient client,
                                AerospikePolicyProvider aerospikePolicyProvider,
                                ExecutorService aerospikeExecutor,
                                ExecutorService batchExecutor) {
         this.graphPrefix = graphPrefix+".";
         this.namespace = namespace;
+        this.idsStoreName = idsStoreName;
         this.idsNamespace = idsNamespace;
         this.client = client;
         this.aerospikeExecutor = aerospikeExecutor;
@@ -76,8 +80,8 @@ public class AerospikeOperations {
         return batchExecutor;
     }
 
-    public String getNamespace() {
-        return namespace;
+    public String getNamespace(String storeName) {
+        return idsStoreName.equals(storeName) ? this.idsNamespace : this.namespace;
     }
 
     Key getKey(String storeName, StaticBuffer staticBuffer) {
@@ -89,11 +93,11 @@ public class AerospikeOperations {
     }
 
     public Key getKey(String storeName, Value value) {
-        String namespace = JANUSGRAPH_ID_STORE_NAME.equals(storeName) ? this.idsNamespace : this.namespace;
+        String namespace = getNamespace(storeName);
         return new Key(namespace, getSetName(storeName), value);
     }
 
-    String getSetName(String storeName) {
+    public String getSetName(String storeName) {
         return graphPrefix + storeName;
     }
 
@@ -121,5 +125,7 @@ public class AerospikeOperations {
         return new AerospikeClient(clientPolicy, hosts);
     }
 
-
+    public String getIdsStoreName() {
+        return idsStoreName;
+    }
 }

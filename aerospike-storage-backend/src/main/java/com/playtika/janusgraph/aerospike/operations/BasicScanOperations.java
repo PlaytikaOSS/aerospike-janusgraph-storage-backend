@@ -13,7 +13,7 @@ import java.util.stream.Stream;
 
 public class BasicScanOperations implements ScanOperations {
 
-    private static Logger logger = LoggerFactory.getLogger(BasicScanOperations.class);
+    private static final Logger logger = LoggerFactory.getLogger(BasicScanOperations.class);
 
     private final AerospikeOperations aerospikeOperations;
     private final ScanPolicy scanPolicy;
@@ -42,7 +42,7 @@ public class BasicScanOperations implements ScanOperations {
             try {
                 logger.warn("Running scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
                 aerospikeOperations.getClient().scanAll(scanPolicy,
-                        aerospikeOperations.getNamespace(), aerospikeOperations.getSetName(storeName), keyIterator);
+                        aerospikeOperations.getNamespace(storeName), aerospikeOperations.getSetName(storeName), keyIterator);
                 logger.info("Finished scan operation storeName=[{}], query=[{}], tx=[{}]", storeName, query, txh);
             } catch (Throwable t) {
                 logger.error("Error while running scan operation storeName=[{}], query=[{}], tx=[{}]",

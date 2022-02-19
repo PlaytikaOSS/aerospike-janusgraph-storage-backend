@@ -15,8 +15,6 @@ import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.TEST_ENVIRONMENT;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_NAMESPACE;
-import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
-import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_BACKEND;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_HOSTS;
@@ -53,16 +51,6 @@ public class AerospikeTestUtils {
         config.set(TEST_ENVIRONMENT, true); //for test purposes only
         config.set(SCAN_PARALLELISM, 100);
         return config;
-    }
-
-    static void deleteAllRecords(GenericContainer container) throws InterruptedException {
-        try(AerospikeClient client = new AerospikeClient(container.getContainerIpAddress(),
-                container.getMappedPort(AEROSPIKE_PROPERTIES.getPort()))) {
-            while(!isEmptyNamespace(client, AEROSPIKE_PROPERTIES.getNamespace())){
-                truncateNamespace(client, AEROSPIKE_PROPERTIES.getNamespace());
-                Thread.sleep(100);
-            }
-        }
     }
 
 }

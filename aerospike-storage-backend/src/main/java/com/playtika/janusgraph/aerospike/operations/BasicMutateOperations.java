@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.ENTRIES_BIN_NAME;
-import static com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates.IDS_STORE_NAME;
 
 public class BasicMutateOperations implements MutateOperations{
 
@@ -84,7 +83,7 @@ public class BasicMutateOperations implements MutateOperations{
 
         } catch (AerospikeException ae) {
             if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG
-                    && storeName.equals(IDS_STORE_NAME)){
+                    && storeName.equals(aerospikeOperations.getIdsStoreName())){
                 throw new IDPoolExhaustedException(ae);
             } else if(ae.getResultCode() != ResultCode.KEY_NOT_FOUND_ERROR){
                 throw ae;

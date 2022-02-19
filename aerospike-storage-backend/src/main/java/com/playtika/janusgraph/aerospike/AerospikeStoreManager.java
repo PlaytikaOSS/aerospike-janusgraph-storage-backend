@@ -30,18 +30,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.playtika.janusgraph.aerospike.AerospikeKeyColumnValueStore.mutationToMap;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.CHECK_ALL_MUTATIONS_LOCKED;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.getValue;
+import static com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates.EDGE_STORE_NAME;
+import static com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates.INDEX_STORE_NAME;
 import static com.playtika.janusgraph.aerospike.operations.batch.BatchUpdates.REGULAR_STORE_NAMES;
-import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
-import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
+import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptySet;
+import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateSet;
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
+import static org.janusgraph.diskstorage.Backend.SYSTEM_MGMT_LOG_NAME;
+import static org.janusgraph.diskstorage.Backend.SYSTEM_TX_LOG_NAME;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.SYSTEM_PROPERTIES_STORE_NAME;
 
 
 @PreInitializeConfigOptions
@@ -55,6 +63,10 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
 
     private final Operations operations;
     private final boolean checkAllMutationsLocked;
+
+    private final Set<String> allStoreNames = new HashSet<>(asList(
+            INDEX_STORE_NAME, EDGE_STORE_NAME,
+            SYSTEM_PROPERTIES_STORE_NAME, SYSTEM_TX_LOG_NAME, SYSTEM_MGMT_LOG_NAME));
 
     public AerospikeStoreManager(Configuration configuration) {
         super(configuration);
@@ -71,6 +83,8 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         }
 
         this.checkAllMutationsLocked = configuration.get(CHECK_ALL_MUTATIONS_LOCKED);
+
+        this.allStoreNames.add(operations.getAerospikeOperations().getIdsStoreName());
     }
 
     protected BasicOperations initOperations(Configuration configuration) {
@@ -111,11 +125,15 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     public KeyColumnValueStore openDatabase(String name) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "Database name may not be null or empty");
 
+        if(!allStoreNames.contains(name)){
+            throw new IllegalArgumentException();
+        }
+
         return new AerospikeKeyColumnValueStore(name,
                 operations.getReadOperations(),
                 operations.getAerospikeOperations(),
                 operations.batchUpdater(),
-                operations.mutateOperations(),
+                operations.getMutateOperations(),
                 operations.getScanOperations());
     }
 
@@ -132,6 +150,10 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
         Map<String, Map<Value, Map<Value, Value>>> locksByStore = transaction.getLocksByStoreKeyColumn();
 
         Map<String, Map<Value, Map<Value, Value>>> mutationsByStore = groupMutationsByStoreKeyColumn(mutations);
+
+        if(!allStoreNames.containsAll(mutationsByStore.keySet())){
+            throw new IllegalArgumentException();
+        }
 
         try {
             if(checkAllMutationsLocked){
@@ -188,7 +210,14 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     public void clearStorage() throws BackendException {
         try {
             AerospikeOperations aerospikeOperations = operations.getAerospikeOperations();
-            truncateNamespace(aerospikeOperations.getClient(), aerospikeOperations.getNamespace());
+            for(String storeName : allStoreNames){
+                truncateSet(
+                        aerospikeOperations.getClient(),
+                        aerospikeOperations.getNamespace(storeName),
+                        aerospikeOperations.getSetName(storeName));
+            }
+
+            operations.getWalOperations().clear();
 
         } catch (AerospikeException e) {
             throw new PermanentBackendException(e);
@@ -201,7 +230,9 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
     public boolean exists() throws BackendException {
         try {
             AerospikeOperations aerospikeOperations = operations.getAerospikeOperations();
-            return !isEmptyNamespace(aerospikeOperations.getClient(), aerospikeOperations.getNamespace());
+            return !isEmptySet(aerospikeOperations.getClient(),
+                    aerospikeOperations.getNamespace(EDGE_STORE_NAME),
+                    aerospikeOperations.getSetName(EDGE_STORE_NAME));
         } catch (AerospikeException e) {
             throw new PermanentBackendException(e);
         }

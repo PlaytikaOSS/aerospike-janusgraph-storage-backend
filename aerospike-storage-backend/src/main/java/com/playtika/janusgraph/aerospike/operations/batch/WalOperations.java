@@ -6,6 +6,7 @@ import org.janusgraph.diskstorage.configuration.Configuration;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_MAX_BATCH_SIZE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_STALE_TRANSACTION_LIFETIME_THRESHOLD;
+import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateSet;
 
 public class WalOperations {
 
@@ -41,5 +42,9 @@ public class WalOperations {
 
     public AerospikeOperations getAerospikeOperations() {
         return aerospikeOperations;
+    }
+
+    public void clear() throws InterruptedException {
+        truncateSet(aerospikeOperations.getClient(), walNamespace, walSetName);
     }
 }

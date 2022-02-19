@@ -34,6 +34,7 @@ import static com.playtika.janusgraph.aerospike.ConfigOptions.PARALLEL_READ_THRE
 import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeClient;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.IDS_STORE_NAME;
 
 public class BasicOperations implements Operations {
 
@@ -50,10 +51,11 @@ public class BasicOperations implements Operations {
 
     private final ReadOperations readOperations;
     private final ScanOperations scanOperations;
+    private final WalOperations walOperations;
 
     public BasicOperations(Configuration configuration) {
         this.aerospikeOperations = buildAerospikeOperations(configuration);
-        WalOperations walOperations = buildWalOperations(configuration, aerospikeOperations);
+        this.walOperations = buildWalOperations(configuration, aerospikeOperations);
         this.mutateOperations = buildMutateOperations(aerospikeOperations);
         BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> batchOperations = buildBatchOperations(
                 aerospikeOperations, walOperations, getClock(),
@@ -94,7 +96,7 @@ public class BasicOperations implements Operations {
     }
 
     @Override
-    public MutateOperations mutateOperations() {
+    public MutateOperations getMutateOperations() {
         return mutateOperations;
     }
 
@@ -123,7 +125,8 @@ public class BasicOperations implements Operations {
         waitForClientToConnect(client);
 
         return new AerospikeOperations(graphPrefix,
-                namespace, idsNamespace,
+                namespace,
+                configuration.get(IDS_STORE_NAME), idsNamespace,
                 client, policyProvider,
                 executorService(configuration.get(AEROSPIKE_EXECUTOR_MAX_THREADS)),
                 executorService(8, 8));
@@ -203,5 +206,9 @@ public class BasicOperations implements Operations {
                 new LinkedBlockingQueue<>(queueCapacity),
                 new NamedThreadFactory(JANUS_BATCH_THREAD_GROUP_NAME, "janus-batch"),
                 new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+
+    public WalOperations getWalOperations() {
+        return walOperations;
     }
 }

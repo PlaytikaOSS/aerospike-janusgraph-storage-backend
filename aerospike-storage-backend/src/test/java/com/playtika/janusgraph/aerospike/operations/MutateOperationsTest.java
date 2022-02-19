@@ -15,6 +15,7 @@ import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeC
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static com.playtika.janusgraph.aerospike.operations.BasicOperations.executorService;
 import static java.util.Collections.singletonMap;
+import static org.janusgraph.graphdb.configuration.JanusGraphConstants.JANUSGRAPH_ID_STORE_NAME;
 
 public class MutateOperationsTest {
 
@@ -31,7 +32,8 @@ public class MutateOperationsTest {
 
     private MutateOperations mutateOperations = new BasicMutateOperations(
             new AerospikeOperations("test",
-                    AEROSPIKE_PROPERTIES.getNamespace(), AEROSPIKE_PROPERTIES.getNamespace(),
+                    AEROSPIKE_PROPERTIES.getNamespace(),
+                    JANUSGRAPH_ID_STORE_NAME, AEROSPIKE_PROPERTIES.getNamespace(),
                     client,
                     new AerospikePolicyProvider(getAerospikeConfiguration(container)),
                     executorService(4),
