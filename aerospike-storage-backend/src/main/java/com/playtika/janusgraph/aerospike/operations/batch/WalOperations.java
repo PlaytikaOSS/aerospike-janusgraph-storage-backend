@@ -13,7 +13,7 @@ public class WalOperations {
     private final Long staleTransactionLifetimeThresholdInMs;
     private final Integer maxBatchSize;
     private final String walSetName;
-    private AerospikeOperations aerospikeOperations;
+    private final AerospikeOperations aerospikeOperations;
 
     public WalOperations(Configuration configuration, AerospikeOperations aerospikeOperations) {
         this.walNamespace = configuration.get(WAL_NAMESPACE);

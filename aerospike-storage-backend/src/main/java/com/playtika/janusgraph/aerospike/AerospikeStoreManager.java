@@ -116,8 +116,11 @@ public class AerospikeStoreManager extends AbstractStoreManager implements KeyCo
                 operations.getAerospikeOperations(),
                 operations.batchUpdater(),
                 operations.mutateOperations(),
-                operations.getScanOperations());
+                operations.getScanOperations(),
+                operations.getIdsCleanupOperations(name));
     }
+
+
 
     @Override
     public KeyColumnValueStore openDatabase(String name, StoreMetaData.Container metaData) {
