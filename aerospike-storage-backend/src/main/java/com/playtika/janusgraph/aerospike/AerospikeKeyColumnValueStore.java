@@ -3,6 +3,7 @@ package com.playtika.janusgraph.aerospike;
 import com.aerospike.client.Value;
 import com.playtika.janusgraph.aerospike.operations.AerospikeOperations;
 import com.playtika.janusgraph.aerospike.operations.ErrorMapper;
+import com.playtika.janusgraph.aerospike.operations.IdsCleanupOperations;
 import com.playtika.janusgraph.aerospike.operations.MutateOperations;
 import com.playtika.janusgraph.aerospike.operations.ReadOperations;
 import com.playtika.janusgraph.aerospike.operations.ScanOperations;
@@ -44,6 +45,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
     private final BatchUpdater<BatchLocks, BatchUpdates, AerospikeLock, Value> batchUpdater;
     private final MutateOperations mutateOperations;
     private final ScanOperations scanOperations;
+    private final IdsCleanupOperations idsCleanupOperations;
 
     protected AerospikeKeyColumnValueStore(
             String storeName,
@@ -51,13 +53,15 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
             AerospikeOperations aerospikeOperations,
             BatchUpdater<BatchLocks, BatchUpdates, AerospikeLock, Value> batchUpdater,
             MutateOperations mutateOperations,
-            ScanOperations scanOperations) {
+            ScanOperations scanOperations,
+            IdsCleanupOperations idsCleanupOperations) {
         this.storeName = storeName;
         this.readOperations = readOperations;
         this.aerospikeOperations = aerospikeOperations;
         this.batchUpdater = batchUpdater;
         this.mutateOperations = mutateOperations;
         this.scanOperations = scanOperations;
+        this.idsCleanupOperations = idsCleanupOperations;
     }
 
     @Override // This method is only supported by stores which keep keys in byte-order.
@@ -99,12 +103,21 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         Map<Value, Value> mutationMap = mutationToMap(new KCVMutation(additions, deletions));
         Value keyValue = getValue(key);
 
-        //no need in transactional logic
-        if(transaction.getLocks().isEmpty()){
-            mutateOperations.mutate(storeName, keyValue, mutationMap);
-            return;
+        try {
+            if (transaction.getLocks().isEmpty()) {
+                //no need in transactional logic
+                mutateOperations.mutate(storeName, keyValue, mutationMap);
+            } else {
+                updateBatch(keyValue, mutationMap, transaction);
+            }
+        } finally {
+            if(idsCleanupOperations != null) {
+                idsCleanupOperations.cleanUpOldIdsRanges(key);
+            }
         }
+    }
 
+    private void updateBatch(Value keyValue,  Map<Value, Value> mutationMap, AerospikeTransaction transaction) throws BackendException {
         Map<String, Map<Value, Map<Value, Value>>> locksByStore = transaction.getLocksByStoreKeyColumn();
         if(!singleton(storeName).containsAll(locksByStore.keySet())){
             throw new IllegalArgumentException();
@@ -131,7 +144,7 @@ public class AerospikeKeyColumnValueStore implements KeyColumnValueStore {
         transaction.close();
     }
 
-    static Map<Value, Value> mutationToMap(KCVMutation mutation){
+    public static Map<Value, Value> mutationToMap(KCVMutation mutation){
         Map<Value, Value> map = new HashMap<>(mutation.getAdditions().size() + mutation.getDeletions().size());
         for(StaticBuffer deletion : mutation.getDeletions()){
             map.put(getValue(deletion), Value.NULL);

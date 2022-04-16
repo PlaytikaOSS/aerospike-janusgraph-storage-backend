@@ -78,4 +78,9 @@ public class ConfigOptions {
     public static final ConfigOption<Boolean> CHECK_ALL_MUTATIONS_LOCKED = new ConfigOption<>(STORAGE_NS,
             "check-all-mutations-locked", "Checks that all mutations are locked",
             ConfigOption.Type.LOCAL, false);
+
+    public static final ConfigOption<Long> IDS_BLOCK_TTL = new ConfigOption<>(STORAGE_NS,
+            "ids-block-ttl", "How long keep history of ids block in milliseconds, default to one week",
+            ConfigOption.Type.LOCAL, 604800000L);
+
 }

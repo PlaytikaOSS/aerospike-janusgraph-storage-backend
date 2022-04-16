@@ -22,7 +22,6 @@ import java.util.stream.Stream;
 import static nosql.batch.update.util.AsyncUtil.shutdownAndAwaitTermination;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_HOSTS;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.STORAGE_PORT;
-import static org.janusgraph.graphdb.configuration.JanusGraphConstants.JANUSGRAPH_ID_STORE_NAME;
 
 public class AerospikeOperations {
 
@@ -34,7 +33,9 @@ public class AerospikeOperations {
 
     private final String namespace;
     private final String idsNamespace;
+    private final String idsStoreName;
     private final String graphPrefix;
+
     private final IAerospikeClient client;
     private final ExecutorService aerospikeExecutor;
 
@@ -45,7 +46,9 @@ public class AerospikeOperations {
     private final ScheduledFuture<?> statsFuture;
 
     public AerospikeOperations(String graphPrefix,
-                               String namespace, String idsNamespace,
+                               String namespace,
+                               String idsNamespace,
+                               String idsStoreName,
                                IAerospikeClient client,
                                AerospikePolicyProvider aerospikePolicyProvider,
                                ExecutorService aerospikeExecutor,
@@ -53,6 +56,7 @@ public class AerospikeOperations {
         this.graphPrefix = graphPrefix+".";
         this.namespace = namespace;
         this.idsNamespace = idsNamespace;
+        this.idsStoreName = idsStoreName;
         this.client = client;
         this.aerospikeExecutor = aerospikeExecutor;
         this.aerospikePolicyProvider = aerospikePolicyProvider;
@@ -89,7 +93,7 @@ public class AerospikeOperations {
     }
 
     public Key getKey(String storeName, Value value) {
-        String namespace = JANUSGRAPH_ID_STORE_NAME.equals(storeName) ? this.idsNamespace : this.namespace;
+        String namespace = idsStoreName.equals(storeName) ? this.idsNamespace : this.namespace;
         return new Key(namespace, getSetName(storeName), value);
     }
 

@@ -28,19 +28,24 @@ import java.util.concurrent.TimeUnit;
 
 import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_EXECUTOR_MAX_THREADS;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.GRAPH_PREFIX;
+import static com.playtika.janusgraph.aerospike.ConfigOptions.IDS_BLOCK_TTL;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.IDS_NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.PARALLEL_READ_THRESHOLD;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.START_WAL_COMPLETER;
 import static com.playtika.janusgraph.aerospike.operations.AerospikeOperations.buildAerospikeClient;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.IDS_STORE_NAME;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TIMESTAMP_PROVIDER;
 
 public class BasicOperations implements Operations {
 
     private static final Logger logger = LoggerFactory.getLogger(BasicOperations.class);
 
-    public static final String JANUS_AEROSPIKE_THREAD_GROUP_NAME = "janus-aerospike";
-    public static final String JANUS_BATCH_THREAD_GROUP_NAME = "janus-batch";
+    public static final String JANUS_GROUP_NAME = "janus";
+    public static final String AEROSPIKE_PREFIX = "aerospike";
+    public static final String BATCH_PREFIX = "batch";
+    public static final String IDS_CLEANUP_PREFIX = "ids-cleanup";
 
     private final AerospikeOperations aerospikeOperations;
     private final MutateOperations mutateOperations;
@@ -50,6 +55,8 @@ public class BasicOperations implements Operations {
 
     private final ReadOperations readOperations;
     private final ScanOperations scanOperations;
+
+    private final IdsCleanupOperations idsCleanupOperations;
 
     public BasicOperations(Configuration configuration) {
         this.aerospikeOperations = buildAerospikeOperations(configuration);
@@ -68,6 +75,13 @@ public class BasicOperations implements Operations {
 
         this.readOperations = buildReadOperations(configuration, aerospikeOperations);
         this.scanOperations = buildScanOperations(configuration, aerospikeOperations);
+
+        this.idsCleanupOperations = new IdsCleanupOperations(
+                configuration.get(IDS_STORE_NAME),
+                readOperations, mutateOperations,
+                configuration.get(IDS_BLOCK_TTL),
+                configuration.get(TIMESTAMP_PROVIDER),
+                executorService(1, IDS_CLEANUP_PREFIX));
     }
 
     protected BatchOperations<BatchLocks, BatchUpdates, AerospikeLock, Value> buildBatchOperations(
@@ -123,10 +137,10 @@ public class BasicOperations implements Operations {
         waitForClientToConnect(client);
 
         return new AerospikeOperations(graphPrefix,
-                namespace, idsNamespace,
+                namespace, idsNamespace, configuration.get(IDS_STORE_NAME),
                 client, policyProvider,
-                executorService(configuration.get(AEROSPIKE_EXECUTOR_MAX_THREADS)),
-                executorService(8, 8));
+                executorService(configuration.get(AEROSPIKE_EXECUTOR_MAX_THREADS), AEROSPIKE_PREFIX),
+                executorService(8, 8, BATCH_PREFIX));
     }
 
     private void waitForClientToConnect(IAerospikeClient client) {
@@ -176,7 +190,7 @@ public class BasicOperations implements Operations {
         Integer scanParallelism = configuration.get(SCAN_PARALLELISM);
         if(scanParallelism > 0){
             return new BasicScanOperations(aerospikeOperations, new NamedThreadFactory(
-                    JANUS_AEROSPIKE_THREAD_GROUP_NAME, "scan"));
+                    JANUS_GROUP_NAME, "scan"));
         } else {
             return new UnsupportedScanOperations();
         }
@@ -190,18 +204,23 @@ public class BasicOperations implements Operations {
         aerospikeOperations.close();
     }
 
-    public static ExecutorService executorService(int maxThreads){
+    @Override
+    public IdsCleanupOperations getIdsCleanupOperations(String storeName) {
+        return idsCleanupOperations.getIdsStoreName().equals(storeName) ? idsCleanupOperations : null;
+    }
+
+    public static ExecutorService executorService(int maxThreads, String prefix){
         return new ThreadPoolExecutor(0, maxThreads,
                 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(),
-                new NamedThreadFactory(JANUS_AEROSPIKE_THREAD_GROUP_NAME, "janus-aerospike"));
+                new NamedThreadFactory(JANUS_GROUP_NAME, prefix));
     }
 
-    public static ExecutorService executorService(int maxThreads, int queueCapacity){
+    public static ExecutorService executorService(int maxThreads, int queueCapacity, String prefix){
         return new ThreadPoolExecutor(0, maxThreads,
                 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(queueCapacity),
-                new NamedThreadFactory(JANUS_BATCH_THREAD_GROUP_NAME, "janus-batch"),
+                new NamedThreadFactory(JANUS_GROUP_NAME, prefix),
                 new ThreadPoolExecutor.CallerRunsPolicy());
     }
 }

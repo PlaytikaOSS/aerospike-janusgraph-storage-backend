@@ -13,8 +13,11 @@ import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.AEROSPIKE_PRO
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeClient;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeConfiguration;
 import static com.playtika.janusgraph.aerospike.AerospikeTestUtils.getAerospikeContainer;
+import static com.playtika.janusgraph.aerospike.operations.BasicOperations.AEROSPIKE_PREFIX;
+import static com.playtika.janusgraph.aerospike.operations.BasicOperations.BATCH_PREFIX;
 import static com.playtika.janusgraph.aerospike.operations.BasicOperations.executorService;
 import static java.util.Collections.singletonMap;
+import static org.janusgraph.graphdb.configuration.JanusGraphConstants.JANUSGRAPH_ID_STORE_NAME;
 
 public class MutateOperationsTest {
 
@@ -32,10 +35,11 @@ public class MutateOperationsTest {
     private MutateOperations mutateOperations = new BasicMutateOperations(
             new AerospikeOperations("test",
                     AEROSPIKE_PROPERTIES.getNamespace(), AEROSPIKE_PROPERTIES.getNamespace(),
+                    JANUSGRAPH_ID_STORE_NAME,
                     client,
                     new AerospikePolicyProvider(getAerospikeConfiguration(container)),
-                    executorService(4),
-                    executorService(4, 4)));
+                    executorService(4, AEROSPIKE_PREFIX),
+                    executorService(4, 4, BATCH_PREFIX)));
 
 
     @Test

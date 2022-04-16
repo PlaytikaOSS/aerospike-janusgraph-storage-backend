@@ -22,4 +22,6 @@ public interface Operations {
     ScanOperations getScanOperations();
 
     void close();
+
+    IdsCleanupOperations getIdsCleanupOperations(String storeName);
 }
