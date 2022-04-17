@@ -30,10 +30,10 @@ public class IdsCleanupOperations {
 
     private static final Logger logger = LoggerFactory.getLogger(IdsCleanupOperations.class);
 
-    private static final StaticBuffer LOWER_SLICE = BufferUtil.zeroBuffer(1);
-    private static final StaticBuffer UPPER_SLICE = BufferUtil.oneBuffer(17);
+    public static final StaticBuffer LOWER_SLICE = BufferUtil.zeroBuffer(1);
+    public static final StaticBuffer UPPER_SLICE = BufferUtil.oneBuffer(17);
 
-    private static final int PROTECTED_BLOCKS_AMOUNT = 10;
+    public static final int PROTECTED_BLOCKS_AMOUNT = 10;
 
 
     private final String idsStoreName;
