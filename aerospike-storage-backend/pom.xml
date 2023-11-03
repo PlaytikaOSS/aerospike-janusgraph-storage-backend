@@ -27,40 +27,28 @@
     <packaging>jar</packaging>
     <name>Aerospike storage backend for Janusgraph graph DB/Decoder</name>
 
-    <properties>
-        <!-- TODO remove after upgrade to 0.6.x janusgraph version  -->
-        <metrics.version>4.1.18</metrics.version>
-    </properties>
-
     <dependencies>
-
-        <!-- TODO remove after upgrade to 0.6.x janusgraph version  -->
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-core</artifactId>
-            <version>${metrics.version}</version>
         </dependency>
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-jvm</artifactId>
-            <version>${metrics.version}</version>
         </dependency>
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-graphite</artifactId>
-            <version>${metrics.version}</version>
         </dependency>
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-jmx</artifactId>
-            <version>${metrics.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.janusgraph</groupId>
             <artifactId>janusgraph-core</artifactId>
             <scope>provided</scope>
-            <!-- TODO remove after upgrade to 0.6.x janusgraph version  -->
             <exclusions>
                 <exclusion>
                     <groupId>io.dropwizard.metrics</groupId>
@@ -155,12 +143,6 @@
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
-
-<!--        <dependency>-->
-<!--            <groupId>org.testcontainers</groupId>-->
-<!--            <artifactId>junit-jupiter</artifactId>-->
-<!--            <scope>test</scope>-->
-<!--        </dependency>-->
 
         <dependency>
             <groupId>junit</groupId>

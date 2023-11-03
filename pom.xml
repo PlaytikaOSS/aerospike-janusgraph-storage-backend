@@ -51,14 +51,14 @@
         <janusgraph.version>0.5.3</janusgraph.version>
 
         <aerospike-batch-updater.version>0.0.20</aerospike-batch-updater.version>
-
+        <metrics.version>4.1.18</metrics.version>
         <netty-all.version>4.1.60.Final</netty-all.version>
 
         <!--Test-->
         <tinkerpop.version>3.4.6</tinkerpop.version>
         <junit.version>4.13</junit.version>
         <assertj.version>3.19.0</assertj.version>
-        <testcontainers.version>1.15.2</testcontainers.version>
+        <testcontainers.version>1.19.1</testcontainers.version>
         <blockhound.version>1.0.4.RELEASE</blockhound.version>
         <disruptor.version>3.4.2</disruptor.version>
         <embedded-aerospike.version>1.19</embedded-aerospike.version>
@@ -67,7 +67,7 @@
         <assertj.version>3.9.0</assertj.version>
         <slf4j-api.version>1.7.30</slf4j-api.version>
         <log4j.version>2.14.1</log4j.version>
-
+        <jmh.version>1.25</jmh.version>
 
         <!--plugins -->
         <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
@@ -91,6 +91,37 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-core</artifactId>
+                <version>${jmh.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-generator-annprocess</artifactId>
+                <version>${jmh.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.dropwizard.metrics</groupId>
+                <artifactId>metrics-core</artifactId>
+                <version>${metrics.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.dropwizard.metrics</groupId>
+                <artifactId>metrics-jvm</artifactId>
+                <version>${metrics.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.dropwizard.metrics</groupId>
+                <artifactId>metrics-graphite</artifactId>
+                <version>${metrics.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.dropwizard.metrics</groupId>
+                <artifactId>metrics-jmx</artifactId>
+                <version>${metrics.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.janusgraph</groupId>
@@ -215,8 +246,6 @@
                 <version>${disruptor.version}</version>
                 <scope>test</scope>
             </dependency>
-
-
         </dependencies>
     </dependencyManagement>
 
