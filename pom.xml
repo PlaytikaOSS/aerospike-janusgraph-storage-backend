@@ -47,7 +47,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <aerospike-client.version>4.4.15</aerospike-client.version>
+        <aerospike-client.version>7.0.0</aerospike-client.version>
         <janusgraph.version>0.5.3</janusgraph.version>
 
         <aerospike-batch-updater.version>0.0.20</aerospike-batch-updater.version>
