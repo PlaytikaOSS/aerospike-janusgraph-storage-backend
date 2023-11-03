@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>com.playtika.janusgraph</groupId>
+  <artifactId>aerospike</artifactId>
+  <versioning>
+    <release>1.0.28</release>
+    <versions>
+      <version>1.0.28</version>
+    </versions>
+    <lastUpdated>20231103195821</lastUpdated>
+  </versioning>
+</metadata>

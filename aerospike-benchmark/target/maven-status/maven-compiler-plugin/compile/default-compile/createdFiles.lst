@@ -1,0 +1,11 @@
+META-INF/CompilerHints
+com/playtika/janusgraph/aerospike/benchmark/jmh_generated/JanusgraphBenchmarks_jmhType_B2.class
+com/playtika/janusgraph/aerospike/benchmark/jmh_generated/JanusgraphBenchmarks_jmhType_B1.class
+META-INF/BenchmarkList
+com/playtika/janusgraph/aerospike/benchmark/Configurations.class
+com/playtika/janusgraph/aerospike/benchmark/jmh_generated/JanusgraphBenchmarks_jmhType_B3.class
+com/playtika/janusgraph/aerospike/benchmark/Graph.class
+com/playtika/janusgraph/aerospike/benchmark/jmh_generated/JanusgraphBenchmarks_jmhType.class
+com/playtika/janusgraph/aerospike/benchmark/jmh_generated/JanusgraphBenchmarks_aerospike_jmhTest.class
+com/playtika/janusgraph/aerospike/benchmark/jmh_generated/JanusgraphBenchmarks_cassandra_jmhTest.class
+com/playtika/janusgraph/aerospike/benchmark/JanusgraphBenchmarks.class

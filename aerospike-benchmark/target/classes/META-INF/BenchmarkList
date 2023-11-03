@@ -1,0 +1,2 @@
+JMH S 64 com.playtika.janusgraph.aerospike.benchmark.JanusgraphBenchmarks S 96 com.playtika.janusgraph.aerospike.benchmark.jmh_generated.JanusgraphBenchmarks_aerospike_jmhTest S 9 aerospike S 10 Throughput E A 1 1 1 E I 1 5 T 3 1 s E I 2 10 T 3 1 s E I 1 3 E E E E E E U 7 SECONDS E E 
+JMH S 64 com.playtika.janusgraph.aerospike.benchmark.JanusgraphBenchmarks S 96 com.playtika.janusgraph.aerospike.benchmark.jmh_generated.JanusgraphBenchmarks_cassandra_jmhTest S 9 cassandra S 10 Throughput E A 1 1 1 E I 1 5 T 3 1 s E I 2 10 T 3 1 s E I 1 3 E E E E E E U 7 SECONDS E E 
