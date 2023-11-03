@@ -28,8 +28,6 @@
     <name>Aerospike storage backend for Janusgraph graph DB/Decoder</name>
 
     <properties>
-        <main.basedir>${project.basedir}/..</main.basedir>
-
         <!-- TODO remove after upgrade to 0.6.x janusgraph version  -->
         <metrics.version>4.1.18</metrics.version>
     </properties>
