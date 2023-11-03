@@ -47,10 +47,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <aerospike-client.version>4.4.15</aerospike-client.version>
+        <aerospike-client.version>6.2.0</aerospike-client.version>
         <janusgraph.version>0.5.3</janusgraph.version>
 
-        <aerospike-batch-updater.version>0.0.20</aerospike-batch-updater.version>
+        <aerospike-batch-updater.version>0.0.22</aerospike-batch-updater.version>
         <metrics.version>4.1.18</metrics.version>
         <netty-all.version>4.1.60.Final</netty-all.version>
 
@@ -59,7 +59,7 @@
         <junit.version>4.13</junit.version>
         <assertj.version>3.19.0</assertj.version>
         <testcontainers.version>1.19.1</testcontainers.version>
-        <blockhound.version>1.0.4.RELEASE</blockhound.version>
+        <blockhound.version>1.0.8.RELEASE</blockhound.version>
         <disruptor.version>3.4.2</disruptor.version>
         <embedded-aerospike.version>1.19</embedded-aerospike.version>
         <awaitility.version>4.0.3</awaitility.version>
