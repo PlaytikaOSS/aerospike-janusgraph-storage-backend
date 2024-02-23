@@ -17,11 +17,11 @@ com/playtika/janusgraph/aerospike/graphdb/AerospikePartitionGraphTest.class
 com/playtika/janusgraph/aerospike/graphdb/AerospikeOperationCountingTest.class
 com/playtika/janusgraph/aerospike/graphdb/AerospikeGraphCacheTest.class
 com/playtika/janusgraph/aerospike/diskstorage/AerospikeIDAuthorityTest.class
-com/playtika/janusgraph/aerospike/graphdb/AerospikeGraphConcurrentTest.class
 com/playtika/janusgraph/aerospike/GraphOfTheGodsTest.class
+com/playtika/janusgraph/aerospike/graphdb/AerospikeGraphConcurrentTest.class
 com/playtika/janusgraph/aerospike/operations/AerospikeTest$1.class
-com/playtika/janusgraph/aerospike/graphdb/AerospikeGraphPerformanceMemoryTest.class
 com/playtika/janusgraph/aerospike/graphdb/AerospikeGraphIterativeTest.class
+com/playtika/janusgraph/aerospike/graphdb/AerospikeGraphPerformanceMemoryTest.class
 com/playtika/janusgraph/aerospike/AerospikeIDAuthorityCleanupTest.class
 com/playtika/janusgraph/aerospike/operations/MutateOperationsTest.class
 com/playtika/janusgraph/aerospike/debuggrapdb/AerospikeDebugGraphConcurrentTest.class
@@ -30,5 +30,5 @@ com/playtika/janusgraph/aerospike/debuggrapdb/AerospikeDebugGraphTest.class
 com/playtika/janusgraph/aerospike/debuggrapdb/AerospikeEventualDebugGraphTest.class
 com/playtika/janusgraph/aerospike/AerospikeTestUtils.class
 com/playtika/janusgraph/aerospike/debuggrapdb/AerospikeDebugGraphIterativeTest.class
-com/playtika/janusgraph/aerospike/graphdb/AerospikeEventualGraphTest.class
 com/playtika/janusgraph/aerospike/AerospikeStoreManagerTest.class
+com/playtika/janusgraph/aerospike/graphdb/AerospikeEventualGraphTest.class

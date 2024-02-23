@@ -27,7 +27,6 @@ public class Configurations {
         config.set(GRAPH_PREFIX, "test");
         //!!! need to prevent small batches mutations as we use deferred locking approach !!!
         config.set(BUFFER_SIZE, AEROSPIKE_BUFFER_SIZE);
-        config.set(TEST_ENVIRONMENT, true);  //for test purposes only
         return config;
     }
 

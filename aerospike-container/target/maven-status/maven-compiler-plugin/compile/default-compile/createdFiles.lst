@@ -1,3 +1,4 @@
 com/aerospike/AerospikeContainerUtils.class
-com/aerospike/AerospikeProperties.class
+com/aerospike/AsadmCommandExecutor.class
 com/aerospike/AerospikeWaitStrategy.class
+com/aerospike/AerospikeProperties.class
