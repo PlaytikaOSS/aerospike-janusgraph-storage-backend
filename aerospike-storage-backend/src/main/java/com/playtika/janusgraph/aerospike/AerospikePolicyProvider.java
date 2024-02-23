@@ -67,6 +67,7 @@ public class AerospikePolicyProvider {
         writePolicy.totalTimeout = configuration.get(AEROSPIKE_WRITE_TIMEOUT);
         writePolicy.socketTimeout = configuration.get(AEROSPIKE_SOCKET_TIMEOUT);
         writePolicy.maxRetries = NO_RETRIES;
+        writePolicy.durableDelete = !configuration.get(TEST_ENVIRONMENT);;
         return writePolicy;
     }
 
@@ -75,7 +76,7 @@ public class AerospikePolicyProvider {
         deletePolicy.expiration = -1;
         deletePolicy.totalTimeout = configuration.get(AEROSPIKE_WRITE_TIMEOUT);
         deletePolicy.socketTimeout = configuration.get(AEROSPIKE_SOCKET_TIMEOUT);
-        deletePolicy.durableDelete = !configuration.get(TEST_ENVIRONMENT);
+        deletePolicy.durableDelete = !configuration.get(TEST_ENVIRONMENT);;
         deletePolicy.maxRetries = NO_RETRIES;
         return deletePolicy;
     }
