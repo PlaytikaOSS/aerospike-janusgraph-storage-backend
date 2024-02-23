@@ -13,7 +13,6 @@ import static com.playtika.janusgraph.aerospike.ConfigOptions.GRAPH_PREFIX;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.IDS_NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.NAMESPACE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.SCAN_PARALLELISM;
-import static com.playtika.janusgraph.aerospike.ConfigOptions.TEST_ENVIRONMENT;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.WAL_NAMESPACE;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.isEmptyNamespace;
 import static com.playtika.janusgraph.aerospike.util.AerospikeUtils.truncateNamespace;
@@ -50,7 +49,6 @@ public class AerospikeTestUtils {
         config.set(GRAPH_PREFIX, "test");
         //!!! need to prevent small batches mutations as we use deferred locking approach !!!
         config.set(BUFFER_SIZE, AEROSPIKE_BUFFER_SIZE);
-        config.set(TEST_ENVIRONMENT, true); //for test purposes only
         config.set(SCAN_PARALLELISM, 100);
         return config;
     }
