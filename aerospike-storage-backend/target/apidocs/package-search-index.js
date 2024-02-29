@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"l":"com.playtika.janusgraph.aerospike"},{"l":"com.playtika.janusgraph.aerospike.operations"},{"l":"com.playtika.janusgraph.aerospike.operations.batch"},{"l":"com.playtika.janusgraph.aerospike.util"},{"l":"com.playtika.janusgraph.trace"},{"l":"com.playtika.janusgraph.utility"}];updateSearchResults();

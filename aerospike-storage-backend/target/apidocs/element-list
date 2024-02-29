@@ -1,6 +1,0 @@
-com.playtika.janusgraph.aerospike
-com.playtika.janusgraph.aerospike.operations
-com.playtika.janusgraph.aerospike.operations.batch
-com.playtika.janusgraph.aerospike.util
-com.playtika.janusgraph.trace
-com.playtika.janusgraph.utility
