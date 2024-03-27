@@ -11,6 +11,7 @@ import com.aerospike.client.policy.WritePolicy;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.janusgraph.diskstorage.configuration.Configuration;
 
+import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_CLIENT_MAX_SOCKET_IDLE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_CONNECTIONS_PER_NODE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_MIN_CONNECTIONS_PER_NODE;
 import static com.playtika.janusgraph.aerospike.ConfigOptions.AEROSPIKE_READ_TIMEOUT;
@@ -36,6 +37,9 @@ public class AerospikePolicyProvider {
         clientPolicy.password = configuration.has(AUTH_PASSWORD) ? configuration.get(AUTH_PASSWORD) : null;
         clientPolicy.minConnsPerNode = configuration.get(AEROSPIKE_MIN_CONNECTIONS_PER_NODE);
         clientPolicy.maxConnsPerNode = configuration.get(AEROSPIKE_CONNECTIONS_PER_NODE);
+        clientPolicy.maxSocketIdle = configuration.has(AEROSPIKE_CLIENT_MAX_SOCKET_IDLE)
+                ? configuration.get(AEROSPIKE_CLIENT_MAX_SOCKET_IDLE)
+                : clientPolicy.maxSocketIdle;
         clientPolicy.readPolicyDefault = readPolicy();
         clientPolicy.scanPolicyDefault = scanPolicy();
         clientPolicy.queryPolicyDefault = queryPolicy();

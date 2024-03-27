@@ -83,4 +83,8 @@ public class ConfigOptions {
             "ids-block-ttl", "How long keep history of ids block in milliseconds, default to one week",
             ConfigOption.Type.LOCAL, 604800000L);
 
+    public static final ConfigOption<Integer> AEROSPIKE_CLIENT_MAX_SOCKET_IDLE = new ConfigOption<>(STORAGE_NS,
+             "aerospike-client-max-socket-idle", "Maximum socket idle in seconds. If server's proto-fd-idle-ms is zero (no reap), then maxSocketIdle should also be zero",
+                    ConfigOption.Type.LOCAL, 0);
+
 }
