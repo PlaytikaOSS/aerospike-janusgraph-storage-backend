@@ -6,7 +6,9 @@ import com.aerospike.client.Record;
 import com.aerospike.client.Value;
 import com.aerospike.client.cdt.MapOperation;
 import com.aerospike.client.cdt.MapReturnType;
+import com.aerospike.client.policy.Replica;
 import com.aerospike.client.policy.WritePolicy;
+import com.playtika.janusgraph.aerospike.AerospikePolicyProvider;
 import com.playtika.janusgraph.aerospike.operations.AerospikeOperations;
 import nosql.batch.update.aerospike.lock.AerospikeExpectedValuesOperations;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
@@ -28,15 +30,12 @@ public class BatchExpectedValueOperations
 
     private static final Logger logger = LoggerFactory.getLogger(BatchExpectedValueOperations.class);
 
-    private static final WritePolicy checkValuesPolicy = new WritePolicy();
-    static {
-        checkValuesPolicy.respondAllOps = true;
-    }
-
     private final AerospikeOperations aerospikeOperations;
+    private final WritePolicy checkValuesPolicy;
 
     public BatchExpectedValueOperations(AerospikeOperations aerospikeOperations) {
         this.aerospikeOperations = aerospikeOperations;
+        this.checkValuesPolicy = buildCheckValuesPolicy(aerospikeOperations.getAerospikePolicyProvider());
     }
 
     @Override
@@ -117,5 +116,12 @@ public class BatchExpectedValueOperations
             logger.info("Unexpected value for key=[{}], column=[{}], expected=[{}], actual=[{}]", key, column, expectedValue, actualValue);
             return false;
         }
+    }
+
+    private static WritePolicy buildCheckValuesPolicy(AerospikePolicyProvider policyProvider){
+        WritePolicy checkValuesPolicy = new WritePolicy(policyProvider.writePolicy());
+        checkValuesPolicy.replica = Replica.MASTER;
+        checkValuesPolicy.respondAllOps = true;
+        return checkValuesPolicy;
     }
 }
