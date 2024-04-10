@@ -6,6 +6,7 @@ import com.aerospike.client.policy.BatchPolicy;
 import com.aerospike.client.policy.ClientPolicy;
 import com.aerospike.client.policy.Policy;
 import com.aerospike.client.policy.QueryPolicy;
+import com.aerospike.client.policy.Replica;
 import com.aerospike.client.policy.ScanPolicy;
 import com.aerospike.client.policy.WritePolicy;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -51,8 +52,10 @@ public class AerospikePolicyProvider {
 
     public BatchPolicy batchPolicy() {
         BatchPolicy batchPolicy = new BatchPolicy();
+        batchPolicy.replica = Replica.MASTER;
         batchPolicy.totalTimeout = configuration.get(AEROSPIKE_WRITE_TIMEOUT);
         batchPolicy.socketTimeout = configuration.get(AEROSPIKE_SOCKET_TIMEOUT);
+        batchPolicy.respondAllKeys = true;
         return batchPolicy;
     }
 
@@ -71,7 +74,7 @@ public class AerospikePolicyProvider {
         writePolicy.totalTimeout = configuration.get(AEROSPIKE_WRITE_TIMEOUT);
         writePolicy.socketTimeout = configuration.get(AEROSPIKE_SOCKET_TIMEOUT);
         writePolicy.maxRetries = NO_RETRIES;
-        writePolicy.durableDelete = !configuration.get(TEST_ENVIRONMENT);;
+        writePolicy.durableDelete = !configuration.get(TEST_ENVIRONMENT);
         return writePolicy;
     }
 
@@ -80,13 +83,14 @@ public class AerospikePolicyProvider {
         deletePolicy.expiration = -1;
         deletePolicy.totalTimeout = configuration.get(AEROSPIKE_WRITE_TIMEOUT);
         deletePolicy.socketTimeout = configuration.get(AEROSPIKE_SOCKET_TIMEOUT);
-        deletePolicy.durableDelete = !configuration.get(TEST_ENVIRONMENT);;
+        deletePolicy.durableDelete = !configuration.get(TEST_ENVIRONMENT);
         deletePolicy.maxRetries = NO_RETRIES;
         return deletePolicy;
     }
 
     public Policy readPolicy() {
         Policy readPolicy = new Policy();
+        readPolicy.replica = Replica.MASTER;
         readPolicy.sendKey = true;
         readPolicy.totalTimeout = configuration.get(AEROSPIKE_READ_TIMEOUT);
         readPolicy.socketTimeout = configuration.get(AEROSPIKE_SOCKET_TIMEOUT);

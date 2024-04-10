@@ -13,7 +13,7 @@ import java.util.Map;
 public class BatchLocks implements AerospikeBatchLocks<Map<Key, ExpectedValue>> {
 
     private final AerospikeOperations aerospikeOperations;
-    private Map<String, Map<Value, Map<Value, Value>>> locksByStore;
+    private final Map<String, Map<Value, Map<Value, Value>>> locksByStore;
     private final List<Key> keysToLock;
     private final Map<Key, ExpectedValue> expectedValues;
 
@@ -62,5 +62,10 @@ public class BatchLocks implements AerospikeBatchLocks<Map<Key, ExpectedValue>> 
 
     public Map<String, Map<Value, Map<Value, Value>>> getLocksByStore() {
         return locksByStore;
+    }
+
+    @Override
+    public String toString(){
+        return locksByStore.toString();
     }
 }
