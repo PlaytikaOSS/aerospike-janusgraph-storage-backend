@@ -1,0 +1,48 @@
+version: 2
+updates:
+- package-ecosystem: maven
+  directory: "/"
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: io.dropwizard.metrics:metrics-jmx
+    versions:
+    - 4.1.19
+  - dependency-name: io.dropwizard.metrics:metrics-graphite
+    versions:
+    - 4.1.19
+  - dependency-name: io.dropwizard.metrics:metrics-jvm
+    versions:
+    - 4.1.19
+  - dependency-name: io.dropwizard.metrics:metrics-core
+    versions:
+    - 4.1.19
+  - dependency-name: com.aerospike:aerospike-client
+    versions:
+    - 5.0.3
+    - 5.0.4
+    - 5.0.5
+    - 5.0.6
+  - dependency-name: io.netty:netty-all
+    versions:
+    - 4.1.58.Final
+    - 4.1.59.Final
+    - 4.1.62.Final
+  - dependency-name: io.projectreactor.tools:blockhound
+    versions:
+    - 1.0.5.RELEASE
+  - dependency-name: org.openjdk.jmh:jmh-generator-annprocess
+    versions:
+    - "1.27"
+    - "1.28"
+  - dependency-name: org.openjdk.jmh:jmh-core
+    versions:
+    - "1.27"
+    - "1.28"
+  - dependency-name: org.testcontainers:cassandra
+    versions:
+    - 1.15.1
+  - dependency-name: org.testcontainers:testcontainers
+    versions:
+    - 1.15.1
