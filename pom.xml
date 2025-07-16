@@ -94,63 +94,63 @@
             <dependency>
                 <groupId>org.openjdk.jmh</groupId>
                 <artifactId>jmh-core</artifactId>
-                <version>${jmh.version}</version>
+                <version>1.25.1</version>
             </dependency>
             <dependency>
                 <groupId>org.openjdk.jmh</groupId>
                 <artifactId>jmh-generator-annprocess</artifactId>
-                <version>${jmh.version}</version>
+                <version>1.25.1</version>
             </dependency>
 
             <dependency>
                 <groupId>io.dropwizard.metrics</groupId>
                 <artifactId>metrics-core</artifactId>
-                <version>${metrics.version}</version>
+                <version>4.1.18</version>
             </dependency>
             <dependency>
                 <groupId>io.dropwizard.metrics</groupId>
                 <artifactId>metrics-jvm</artifactId>
-                <version>${metrics.version}</version>
+                <version>4.1.18</version>
             </dependency>
             <dependency>
                 <groupId>io.dropwizard.metrics</groupId>
                 <artifactId>metrics-graphite</artifactId>
-                <version>${metrics.version}</version>
+                <version>4.2.20</version>
             </dependency>
             <dependency>
                 <groupId>io.dropwizard.metrics</groupId>
                 <artifactId>metrics-jmx</artifactId>
-                <version>${metrics.version}</version>
+                <version>4.1.18</version>
             </dependency>
 
             <dependency>
                 <groupId>org.janusgraph</groupId>
                 <artifactId>janusgraph-core</artifactId>
-                <version>${janusgraph.version}</version>
+                <version>0.5.3</version>
             </dependency>
 
             <dependency>
                 <groupId>com.aerospike</groupId>
                 <artifactId>aerospike-client</artifactId>
-                <version>${aerospike-client.version}</version>
+                <version>6.2.0</version>
             </dependency>
 
             <dependency>
                 <groupId>com.playtika.nosql</groupId>
                 <artifactId>aerospike-batch-updater</artifactId>
-                <version>${aerospike-batch-updater.version}</version>
+                <version>0.0.24</version>
             </dependency>
 
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
-                <version>${slf4j-api.version}</version>
+                <version>1.7.30</version>
             </dependency>
 
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty-all</artifactId>
-                <version>${netty-all.version}</version>
+                <version>4.1.60.Final</version>
             </dependency>
 
             <!--Test-->
@@ -158,76 +158,76 @@
             <dependency>
                 <groupId>org.apache.tinkerpop</groupId>
                 <artifactId>gremlin-core</artifactId>
-                <version>${tinkerpop.version}</version>
+                <version>3.4.9</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.tinkerpop</groupId>
                 <artifactId>gremlin-server</artifactId>
-                <version>${tinkerpop.version}</version>
+                <version>3.6.8</version>
             </dependency>
 
             <dependency>
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers</artifactId>
-                <version>${testcontainers.version}</version>
+                <version>1.19.1</version>
             </dependency>
 
             <dependency>
                 <groupId>org.testcontainers</groupId>
                 <artifactId>cassandra</artifactId>
-                <version>${testcontainers.version}</version>
+                <version>1.19.1</version>
             </dependency>
 
             <dependency>
                 <groupId>org.janusgraph</groupId>
                 <artifactId>janusgraph-test</artifactId>
-                <version>${janusgraph.version}</version>
+                <version>0.6.4-20231005-114852.1f7b149</version>
                 <scope>test</scope>
             </dependency>
 
             <dependency>
                 <groupId>org.janusgraph</groupId>
                 <artifactId>janusgraph-cql</artifactId>
-                <version>${janusgraph.version}</version>
+                <version>0.6.4-20231005-114852.1f7b149</version>
             </dependency>
 
             <dependency>
                 <groupId>com.playtika.janusgraph</groupId>
                 <artifactId>aerospike-container</artifactId>
-                <version>${project.version}</version>
+                <version>1.0.33</version>
             </dependency>
 
             <dependency>
                 <groupId>com.playtika.janusgraph</groupId>
                 <artifactId>aerospike-storage-backend</artifactId>
-                <version>${project.version}</version>
+                <version>1.0.33</version>
             </dependency>
 
             <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
-                <version>${junit.version}</version>
+                <version>4.13.1</version>
                 <scope>test</scope>
             </dependency>
 
             <dependency>
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
-                <version>${assertj.version}</version>
+                <version>3.9.0</version>
                 <scope>test</scope>
             </dependency>
 
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
                 <artifactId>log4j-slf4j-impl</artifactId>
-                <version>${log4j.version}</version>
+                <version>2.17.1</version>
                 <scope>test</scope>
             </dependency>
 
             <dependency>
                 <groupId>org.awaitility</groupId>
                 <artifactId>awaitility</artifactId>
-                <version>${awaitility.version}</version>
+                <version>4.0.3</version>
                 <scope>test</scope>
             </dependency>
 
@@ -235,7 +235,7 @@
             <dependency>
                 <groupId>io.projectreactor.tools</groupId>
                 <artifactId>blockhound</artifactId>
-                <version>${blockhound.version}</version>
+                <version>1.0.8.RELEASE</version>
                 <scope>test</scope>
             </dependency>
 
@@ -243,7 +243,7 @@
             <dependency>
                 <groupId>com.lmax</groupId>
                 <artifactId>disruptor</artifactId>
-                <version>${disruptor.version}</version>
+                <version>3.4.2</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>
