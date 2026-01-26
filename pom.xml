@@ -64,7 +64,7 @@
         <embedded-aerospike.version>1.19</embedded-aerospike.version>
         <awaitility.version>4.0.3</awaitility.version>
         <junit.version>4.12</junit.version>
-        <assertj.version>3.9.0</assertj.version>
+        <assertj.version>3.27.7</assertj.version>
         <slf4j-api.version>1.7.30</slf4j-api.version>
         <log4j.version>2.14.1</log4j.version>
         <jmh.version>1.25</jmh.version>
